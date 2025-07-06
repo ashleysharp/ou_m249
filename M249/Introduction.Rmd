@@ -1,0 +1,62 @@
+---
+title: "Introduction"
+output: html_document
+date: "2025-07-05"
+---
+
+```{r}
+library(haven)
+library(tidyverse)
+library(moments)
+```
+
+## Section 2: North Sea Cod
+
+```{r}
+codareas <- read_sav("data/Introduction/codareas.sav")
+```
+
+```{r}
+ggplot(codareas, aes(x = area, y = biomass)) + geom_col() + theme_minimal()
+```
+
+```{r}
+cod <- read_sav("data/Introduction/cod.sav")
+```
+
+```{r}
+ggplot(cod) + geom_line(aes(x = year, y = catch)) + theme_minimal()
+```
+
+```{r}
+cod_long <- cod %>% pivot_longer(cols = c("biomass", "catch"))
+```
+
+```{r}
+ggplot(cod_long) + geom_line(aes(x = year, y = value, col = name)) + theme_minimal()
+```
+
+```{r}
+ggplot(cod, aes(x = biomass, y = recruits)) + geom_point() + theme_minimal()
+```
+
+```{r}
+pcb <- read_sav("data/Introduction/pcb.sav")
+```
+
+```{r}
+breaks <- seq(1, 3, 0.5)
+ggplot(pcb, aes(x = pcb)) + geom_histogram(breaks = breaks)
+```
+
+```{r}
+pcb %>% summarise(
+  valid = sum(!is.na(pcb)), 
+  missing = sum(is.na(pcb)), 
+  Mean = mean(pcb, na.rm = T), 
+  Median = median(pcb, na.rm = T), 
+  std_deviation = sd(pcb, na.rm = T), 
+  variance = var(pcb, na.rm = T), 
+  skewness = skewness(pcb, na.rm = T)) %>%
+  pivot_longer(cols = everything())
+```
