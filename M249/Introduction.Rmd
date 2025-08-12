@@ -10,7 +10,7 @@ library(tidyverse)
 library(moments)
 ```
 
-## Section 2: North Sea Cod
+Section 2: North Sea Cod
 
 ```{r}
 codareas <- read_sav("data/Introduction/codareas.sav")
@@ -59,4 +59,112 @@ pcb %>% summarise(
   variance = var(pcb, na.rm = T), 
   skewness = skewness(pcb, na.rm = T)) %>%
   pivot_longer(cols = everything())
+```
+
+Section 6: The air we breathe
+
+```{r}
+airquality <- read_sav("data/Introduction/airquality.sav") %>% 
+  mutate(logNO = log(NO),
+         PM10group = case_when(PM10 <= median(PM10, na.rm = T) ~ 1,
+                              PM10 > median(PM10, na.rm = T) ~ 2),
+         sqrtNO2 = sqrt(NO2))
+```
+
+```{r}
+ggplot(airquality, mapping = aes(x = NO)) + geom_histogram(binwidth = 5)
+```
+
+```{r}
+airquality %>% summarise(mean_NO = mean(NO, na.rm = T), sd_NO = sd(NO, na.rm = T))
+```
+
+```{r}
+ggplot(airquality, mapping = aes(x = logNO)) + geom_histogram(binwidth = 1/6)
+```
+
+```{r}
+airquality %>% summarise(mean = mean(asthma), 
+                         lower = t.test(airquality$asthma)$conf.int[1],
+                         upper = t.test(airquality$asthma)$conf.int[2])
+```
+
+```{r}
+airquality %>% group_by(PM10group) %>%
+  summarise(mean = mean(asthma))
+```
+
+```{r}
+ggplot(airquality, mapping = aes(x = NO, y = CO)) + geom_point()
+```
+
+```{r}
+cor.test(airquality$CO, airquality$NO, method = "pearson")
+```
+
+Section 7: Modelling exercises
+
+```{r}
+mercury <- read_sav("data/Introduction/mercury.sav") %>% mutate(diff = Irishsea - Northsea)
+```
+
+```{r}
+ggplot(mercury, mapping = aes(x = diff)) + geom_histogram(binwidth = 0.015)
+```
+
+```{r}
+mean(mercury$diff, na.rm = T)
+```
+
+```{r}
+t.test(mercury$diff)
+```
+
+```{r}
+ggplot(cod, mapping = aes(y = catch, x = biomass)) + geom_point()
+```
+
+```{r}
+cor.test(cod$biomass, cod$catch, method = "pearson")
+```
+
+```{r}
+ggplot(airquality, mapping = aes(x = NO2)) + geom_histogram()
+ggplot(airquality, mapping = aes(x = sqrtNO2)) + geom_histogram()
+```
+
+```{r}
+skewness(airquality$NO2, na.rm = T)
+skewness(airquality$sqrtNO2, na.rm = T)
+```
+
+```{r}
+ggplot(airquality, mapping = aes(x = sqrtNO2, y = NO)) + geom_point()
+ggplot(airquality, mapping = aes(x = sqrtNO2, y = logNO)) + geom_point()
+```
+
+```{r}
+cor.test(airquality$sqrtNO2, airquality$NO)
+cor.test(airquality$sqrtNO2, airquality$logNO)
+```
+
+```{r}
+asthma <- read_sav("data/Introduction/asthma.sav")
+
+asthma_1 <- asthma %>% filter(sex == 1)
+asthma_2 <- asthma %>% filter(sex == 2)
+```
+
+```{r}
+sd(asthma_1$stay)
+sd(asthma_2$stay)
+```
+
+```{r}
+t.test(asthma_1$stay)
+t.test(asthma_2$stay)
+```
+
+```{r}
+t.test(asthma_1$stay, asthma_2$stay)
 ```

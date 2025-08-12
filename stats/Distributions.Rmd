@@ -186,8 +186,8 @@ prop.test(sample_total, n, p_0, correct = FALSE) #CI slightly different??
 
 ```{r}
 #number of successes in a sequence of n independent Bernoulli trials with probability p
-n_ <- 3000 #finite range, Bernoulli if n = 1
-p <- 12/3000
+n_ <- 50 #finite range, Bernoulli if n = 1
+p <- 49/50
 # p <- l/n_ 
 #right-skew for p <0.5, symmetric for p = 0.5, left-skew for p >0.5
 #The Poisson distribution is the limiting distribution of X ~ B(n, l/n)
