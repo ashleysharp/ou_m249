@@ -3,3 +3,35 @@ title: "Medical statistics"
 output: html_document
 date: "2025-07-05"
 ---
+
+## Confidence intervals for relative risk
+
+Relative risk
+
+```{r}
+a <- 1934
+n1 <- 142870
+c <- 2894
+n2 = 392757
+
+rr <- (a/n1)/(c/n2)
+
+rr
+```
+
+Estimated standard error
+
+```{r}
+s <- sqrt(1/a - 1/n1 + 1/c - 1/n2)
+s
+```
+
+Confidence interval
+
+```{r}
+alpha <- 0.01
+z <- qnorm(0.99)
+
+ci <- c(rr * exp(-z * s), rr * exp(z * s))
+ci
+```
