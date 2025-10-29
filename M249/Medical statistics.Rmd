@@ -6,9 +6,12 @@ date: "2025-07-05"
 
 ```{r}
 library(tidyverse)
+library(janitor)
+library(haven)
+library(epitools)
 ```
 
-
+# Measures of association
 ## Confidence intervals for relative risk
 
 Relative risk
@@ -89,5 +92,36 @@ ggplot(df, aes(x = x, y = d, group = df, colour = df)) + geom_line() + theme_min
 ```
 
 
+
+## Cross tabulation
+
+```{r}
+df_eclampsia <- tibble(count = c(327, 215, 76, 201), exposure = c(1,1,2,2), disease = c(1,2,1,2)) %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("eclampsia", "no eclampsia")),
+         disease = factor(disease, levels = c(1, 2), labels = c("hypertension", "no hypertension")))
+df_eclampsia
+```
+
+```{r}
+tab_eclampsia <- xtabs(count ~ exposure + disease, data = df_eclampsia)
+addmargins(tab_eclampsia)
+```
+
+
+## Cohort studies
+
+```{r}
+df_redundancy <- read_sav("data/Book 1/redundancy.sav") %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("redundant", "not_redundant")),
+         disease = factor(disease, levels = c(1, 2), labels = c("injury", "no_injury")))
+```
+
+```{r}
+tab_redundancy <- xtabs(count ~ exposure + disease, data = df_redundancy)
+addmargins(tab_redundancy)
+```
+```{r}
+epiR::epi.2by2(tab_redundancy, method = "cohort.count")
+```
 
 
