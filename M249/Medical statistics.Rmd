@@ -108,7 +108,7 @@ addmargins(tab_eclampsia)
 ```
 
 
-## Cohort studies
+## Cohort studies - relative risk
 
 ```{r}
 df_redundancy <- read_sav("data/Book 1/redundancy.sav") %>%
@@ -121,7 +121,82 @@ tab_redundancy <- xtabs(count ~ exposure + disease, data = df_redundancy)
 addmargins(tab_redundancy)
 ```
 ```{r}
-epiR::epi.2by2(tab_redundancy, method = "cohort.count")
+epiR::epi.2by2(tab_redundancy, method = "cohort.count", digits = 3)
 ```
 
 
+
+
+## Case-control studies - odds ratio
+
+
+```{r}
+df_drinkdriving <- read_sav("data/Book 1/drinkdriving.sav") %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("alcohol", "no_alcohol")),
+         outcome = factor(outcome, levels = c(1, 2), labels = c("killed", "not_killed")))
+```
+
+```{r}
+tab_drinkdriving <- xtabs(count ~ exposure + outcome, data = df_drinkdriving)
+addmargins(tab_drinkdriving)
+```
+
+
+```{r}
+epiR::epi.2by2(tab_drinkdriving, method = "cohort.count", digits = 3)
+```
+
+## Chi-squared & Fisher's exact test
+
+```{r}
+tab_redundancy
+
+chisq.test(tab_redundancy, correct = F)$expected
+
+chisq.test(tab_redundancy, correct = F)
+
+fisher.test(tab_redundancy)
+```
+
+```{r}
+df_measles <- read_sav("data/Book 1/measlesdeath.sav") %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("after", "before")),
+         disease = factor(disease, levels = c(1, 2), labels = c("died", "survived")))
+```
+
+```{r}
+tab_measles <- xtabs(count ~ exposure + disease, data = df_measles)
+addmargins(tab_measles)
+```
+
+```{r}
+tab_measles
+
+chisq.test(tab_measles, correct = F)$expected
+
+chisq.test(tab_measles, correct = F)
+
+fisher.test(tab_measles)
+```
+
+
+```{r}
+df_asthma <- read_sav("data/Book 1/asthmagest.sav") %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2, 3), labels = c("pre-term", "term", "post-term")),
+         disease = factor(disease, levels = c(1, 2), labels = c("hosp", "not_hosp")))
+```
+
+```{r}
+tab_asthma <- xtabs(count ~ exposure + disease, data = df_asthma)
+addmargins(tab_asthma)
+```
+
+```{r}
+tab_asthma
+
+chisq.test(tab_asthma, correct = F)$expected
+
+chisq.test(tab_asthma, correct = F)
+?
+fisher.test(tab_asthma)
+```
