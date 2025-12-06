@@ -104,7 +104,7 @@ ggplot(tibble(x = rnorm(100000)^2 + rnorm(100000)^2 + rnorm(100000)^2 + rnorm(10
 ```
 
 ## Cross tabulation
-
+### Eclampsia
 ```{r}
 df_eclampsia <- tibble(count = c(327, 215, 76, 201), exposure = c(1,1,2,2), disease = c(1,2,1,2)) %>%
   mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("eclampsia", "no eclampsia")),
@@ -119,6 +119,7 @@ addmargins(tab_eclampsia)
 
 ## Cohort studies - relative risk
 
+### Redundancy
 ```{r}
 df_redundancy <- read_sav("data/Book 1/redundancy.sav") %>%
   mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("redundant", "not_redundant")),
@@ -135,6 +136,8 @@ epi.2by2(tab_redundancy, method = "cohort.count", digits = 3)
 ```
 
 ## Case-control studies - odds ratio
+
+### Drink driving
 
 ```{r}
 df_drinkdriving <- read_sav("data/Book 1/drinkdriving.sav") %>%
@@ -153,6 +156,7 @@ epi.2by2(tab_drinkdriving, method = "case.control", digits = 3)
 
 ## Chi-squared & Fisher's exact test
 
+### Redundancy
 ```{r}
 tab_redundancy
 
@@ -163,6 +167,7 @@ chisq.test(tab_redundancy, correct = F)
 fisher.test(tab_redundancy)
 ```
 
+### Measles
 ```{r}
 df_measles <- read_sav("data/Book 1/measlesdeath.sav") %>%
   mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("after", "before")),
@@ -183,6 +188,8 @@ chisq.test(tab_measles, correct = F)
 
 fisher.test(tab_measles)
 ```
+
+### Asthma
 
 ```{r}
 df_asthma <- read_sav("data/Book 1/asthmagest.sav") %>%
@@ -207,6 +214,7 @@ fisher.test(tab_asthma)
 
 ## Stratified tables
 
+### Kidney stones
 ```{r}
 df_kidney_stone <- tibble(
   count = c(234,36,81,6,55,25,192,71), 
@@ -227,6 +235,7 @@ addmargins(tab_kidney_stone)
 
 ## Mantel-Haenszel odds ratio
 
+### Diabetes
 ```{r}
 df_diabetes <- read_sav("data/Book 1/diabetes.sav") %>%
     mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("non-insulin dependent", "insulin dependent")),
@@ -236,20 +245,170 @@ df_diabetes <- read_sav("data/Book 1/diabetes.sav") %>%
 
 ```{r}
 tab_diabetes <- xtabs(count ~ exposure + outcome + stratum, data = df_diabetes)
-
 addmargins(tab_diabetes)
 ```
 
 ```{r}
+epi.2by2(tab_diabetes, method = "cohort.count", digits = 3)
+```
+
+```{r}
+epi.2by2(tab_diabetes[, , "40y or younger"], method = "cohort.count", digits = 3)
 epi.2by2(tab_diabetes[, , "over 40y"], method = "cohort.count", digits = 3)
 ```
+
 Tests of homogeneity of the odds ratio
 Breslow-Day / Tarone's test
 ```{r}
 BreslowDayTest(tab_diabetes)
 ```
+
 Tests of conditional independence
 Mantel Haenszel
 ```{r}
 mantelhaen.test(tab_diabetes)
+```
+
+### Drink driving
+```{r}
+df_drinkdriving2 <- read_sav("data/Book 1/drinkdriving2.sav") %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("alcohol", "no_alcohol")),
+         outcome = factor(casecon, levels = c(1, 2), labels = c("killed", "not_killed")),
+         stratum = factor(stratum, levels = c(1, 2), labels = c("married", "unmarried")))
+```
+
+```{r}
+tab_drinkdriving2 <- xtabs(count ~ exposure + outcome + stratum, data = df_drinkdriving2)
+
+addmargins(tab_drinkdriving2)
+```
+
+```{r}
+epi.2by2(tab_drinkdriving2[,,"married"], method = "case.control", digits = 3)
+epi.2by2(tab_drinkdriving2[,,"unmarried"], method = "case.control", digits = 3)
+epi.2by2(tab_drinkdriving2, method = "case.control", digits = 3)
+```
+
+Tests of homogeneity of the odds ratio
+Breslow-Day / Tarone's test
+```{r}
+BreslowDayTest(tab_drinkdriving2)
+```
+
+Tests of conditional independence
+Mantel Haenszel
+```{r}
+mantelhaen.test(tab_drinkdriving2)
+```
+
+Married OR    16.480 (3.354, 80.970)
+Unmarried OR  28.667 (5.857, 140.316)
+Crude OR      25.550 (8.682, 75.189)
+
+
+Breslow-Day test on Homogeneity of Odds Ratios
+X-squared = 0.24307, df = 1, p-value = 0.622
+
+M-H OR        23.001 (7.465, 70.866)
+M-H X-squared = 36.604, df = 1, p-value =
+1.447e-09
+
+
+## Matched case-control
+### Contraceptive pill
+#### McNemar's test
+
+```{r}
+df_pill <- read_sav("data/Book 1/pill.sav")
+```
+
+```{r}
+tab_pill <- xtabs(count ~ cases + controls, data = df_pill)
+
+addmargins(tab_pill)
+```
+```{r}
+mcnemar.test(tab_pill, correct = TRUE)
+```
+#### Mantel-Haenszel odds ratio
+
+```{r}
+z <- qnorm(0.975)
+
+f <- tab_pill[1,2]
+g <- tab_pill[2,1]
+
+OR_hat <- f/g
+OR_low <- OR_hat*exp(-z*sqrt(1/f + 1/g)) 
+OR_high <- OR_hat*exp(z*sqrt(1/f + 1/g))
+
+c(OR_low, OR_hat, OR_high)
+```
+
+### Alzheimer's
+
+#### McNemar's test
+
+```{r}
+df_alzheimers <- read_sav("data/Book 1/Alzheimers.sav")
+```
+
+```{r}
+tab_alzheimers<- xtabs(count ~ cases + controls, data = df_alzheimers)
+
+addmargins(tab_alzheimers)
+```
+
+```{r}
+mcnemar.test(tab_alzheimers, correct = TRUE)
+```
+
+#### Mantel-Haenszel odds ratio
+
+```{r}
+z <- qnorm(0.975)
+
+f <- tab_alzheimers[1,2]
+g <- tab_alzheimers[2,1]
+
+OR_hat <- f/g
+OR_low <- OR_hat*exp(-z*sqrt(1/f + 1/g)) 
+OR_high <- OR_hat*exp(z*sqrt(1/f + 1/g))
+
+c(OR_low, OR_hat, OR_high)
+```
+
+
+## Dose-response
+
+### Smoking
+```{r}
+df_smoking2 <- read_sav("data/Book 1/smoking2.sav") %>%
+  mutate(outcome = factor(casecon, levels = c(1, 2), labels = c("case", "control")))
+```
+
+```{r}
+tab_smoking2 <- xtabs(count ~ dose + outcome, data = df_smoking2)
+
+addmargins(tab_smoking2)
+```
+
+```{r}
+CochranArmitageTest(tab_smoking2)
+```
+
+### PTSD
+```{r}
+df_ptsd <- read_sav("data/Book 1/gulfdose.sav") %>%
+  mutate(outcome = factor(outcome, levels = c(1, 2), labels = c("case", "control")))
+```
+
+```{r}
+tab_ptsd <- xtabs(count ~ dose + outcome, data = df_ptsd)
+
+addmargins(tab_ptsd)
+```
+
+```{r}
+CochranArmitageTest(tab_ptsd)
 ```
