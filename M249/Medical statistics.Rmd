@@ -8,10 +8,12 @@ date: "2025-07-05"
 library(tidyverse)
 library(janitor)
 library(haven)
-library(epitools)
+library(epiR)
+library(DescTools)
 ```
 
 # Measures of association
+
 ## Confidence intervals for relative risk
 
 Relative risk
@@ -76,7 +78,6 @@ ci <- c(or * exp(-z * s), or * exp(z * s))
 ci
 ```
 
-
 ## Chi-squared distribution
 
 ```{r}
@@ -91,7 +92,16 @@ df <- tibble(x = seq(0.1, 10, 0.1)) %>%
 ggplot(df, aes(x = x, y = d, group = df, colour = df)) + geom_line() + theme_minimal()
 ```
 
-
+```{r}
+ggplot(tibble(x = rnorm(100000)^2), 
+       aes(x = x)) + geom_histogram(binwidth = 0.1) + scale_y_continuous(limits = c(0, 10000)) + theme_minimal()
+ggplot(tibble(x = rnorm(100000)^2 + rnorm(100000)^2), 
+       aes(x = x)) + geom_histogram(binwidth = 0.1) + scale_y_continuous(limits = c(0, 10000)) + theme_minimal()
+ggplot(tibble(x = rnorm(100000)^2 + rnorm(100000)^2 + rnorm(100000)^2), 
+       aes(x = x)) + geom_histogram(binwidth = 0.1) + scale_y_continuous(limits = c(0, 10000)) + theme_minimal()
+ggplot(tibble(x = rnorm(100000)^2 + rnorm(100000)^2 + rnorm(100000)^2 + rnorm(100000)^2),
+       aes(x = x)) + geom_histogram(binwidth = 0.1) + scale_y_continuous(limits = c(0, 10000)) + theme_minimal()
+```
 
 ## Cross tabulation
 
@@ -107,7 +117,6 @@ tab_eclampsia <- xtabs(count ~ exposure + disease, data = df_eclampsia)
 addmargins(tab_eclampsia)
 ```
 
-
 ## Cohort studies - relative risk
 
 ```{r}
@@ -120,15 +129,12 @@ df_redundancy <- read_sav("data/Book 1/redundancy.sav") %>%
 tab_redundancy <- xtabs(count ~ exposure + disease, data = df_redundancy)
 addmargins(tab_redundancy)
 ```
+
 ```{r}
-epiR::epi.2by2(tab_redundancy, method = "cohort.count", digits = 3)
+epi.2by2(tab_redundancy, method = "cohort.count", digits = 3)
 ```
 
-
-
-
 ## Case-control studies - odds ratio
-
 
 ```{r}
 df_drinkdriving <- read_sav("data/Book 1/drinkdriving.sav") %>%
@@ -141,9 +147,8 @@ tab_drinkdriving <- xtabs(count ~ exposure + outcome, data = df_drinkdriving)
 addmargins(tab_drinkdriving)
 ```
 
-
 ```{r}
-epiR::epi.2by2(tab_drinkdriving, method = "cohort.count", digits = 3)
+epi.2by2(tab_drinkdriving, method = "case.control", digits = 3)
 ```
 
 ## Chi-squared & Fisher's exact test
@@ -179,7 +184,6 @@ chisq.test(tab_measles, correct = F)
 fisher.test(tab_measles)
 ```
 
-
 ```{r}
 df_asthma <- read_sav("data/Book 1/asthmagest.sav") %>%
   mutate(exposure = factor(exposure, levels = c(1, 2, 3), labels = c("pre-term", "term", "post-term")),
@@ -197,6 +201,55 @@ tab_asthma
 chisq.test(tab_asthma, correct = F)$expected
 
 chisq.test(tab_asthma, correct = F)
-?
+
 fisher.test(tab_asthma)
+```
+
+## Stratified tables
+
+```{r}
+df_kidney_stone <- tibble(
+  count = c(234,36,81,6,55,25,192,71), 
+  exposure = c(1,1,2,2,1,1,2,2), 
+  outcome = c(1,2,1,2,1,2,1,2),
+  stratum = c(1,1,1,1,2,2,2,2)) %>%
+  mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("keyhole surgery", "open surgery")),
+         outcome = factor(outcome, levels = c(1, 2), labels = c("success", "failure")),
+         stratum = factor(stratum, levels = c(1, 2), labels = c("small", "large")))
+df_kidney_stone
+```
+
+```{r}
+tab_kidney_stone <- xtabs(count ~ exposure + outcome + stratum, data = df_kidney_stone)
+
+addmargins(tab_kidney_stone)
+```
+
+## Mantel-Haenszel odds ratio
+
+```{r}
+df_diabetes <- read_sav("data/Book 1/diabetes.sav") %>%
+    mutate(exposure = factor(exposure, levels = c(1, 2), labels = c("non-insulin dependent", "insulin dependent")),
+         outcome = factor(outcome, levels = c(1, 2), labels = c("died", "alive")),
+         stratum = factor(stratum, levels = c(1, 2), labels = c("40y or younger", "over 40y")))
+```
+
+```{r}
+tab_diabetes <- xtabs(count ~ exposure + outcome + stratum, data = df_diabetes)
+
+addmargins(tab_diabetes)
+```
+
+```{r}
+epi.2by2(tab_diabetes[, , "over 40y"], method = "cohort.count", digits = 3)
+```
+Tests of homogeneity of the odds ratio
+Breslow-Day / Tarone's test
+```{r}
+BreslowDayTest(tab_diabetes)
+```
+Tests of conditional independence
+Mantel Haenszel
+```{r}
+mantelhaen.test(tab_diabetes)
 ```
