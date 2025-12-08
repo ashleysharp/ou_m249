@@ -10,6 +10,7 @@ library(janitor)
 library(haven)
 library(epiR)
 library(DescTools)
+library(glue)
 ```
 
 # Measures of association
@@ -412,3 +413,96 @@ addmargins(tab_ptsd)
 ```{r}
 CochranArmitageTest(tab_ptsd)
 ```
+
+
+## Power
+
+```{r}
+
+# PARAMETERS YOU CAN ADJUST
+n     <- 100
+mu0   <- 0
+mu1   <- 0.5
+sigma <- 2
+alpha <- 0.05
+
+# Derived quantities
+SE     <- sigma / sqrt(n)
+lambda <- (mu1 - mu0) / SE # Non-centrality parameter
+crit   <- qnorm(1 - alpha/2)
+
+power <-
+  pnorm(-crit, mean = lambda, sd = 1) + (1 - pnorm(crit, mean = lambda, sd = 1))
+
+SE; lambda; power
+
+```
+```{r}
+x <- seq(-4, 6, length.out = 2000)
+
+df_long <- tibble(
+  x = x,
+  null = dnorm(x, mean = 0, sd = 1),
+  alt  = dnorm(x, mean = lambda, sd = 1),
+  reject_left  = x < -crit,
+  reject_right = x > crit
+) %>%
+  pivot_longer(cols = c(null, alt),
+               names_to = "distribution",
+               values_to = "density")
+
+```
+
+```{r}
+ggplot(df_long, aes(x = x, y = density, colour = distribution)) +
+  
+  # Curves
+  geom_line(linewidth = 1.2) +
+  
+  # Power shading (left tail)
+  geom_area(
+    data = df_long %>% filter(distribution == "alt", reject_left),
+    aes(fill = distribution),
+    alpha = 0.25,
+    colour = NA
+  ) +
+  
+  # Power shading (right tail)
+  geom_area(
+    data = df_long %>% filter(distribution == "alt", reject_right),
+    aes(fill = distribution),
+    alpha = 0.25,
+    colour = NA
+  ) +
+  
+  # Critical values
+  geom_vline(xintercept = c(-crit, crit), linetype = 2, colour = "darkred") +
+  
+  # Manual colours
+  scale_colour_manual(
+    name   = "Distribution",
+    values = c(null = "#222222",
+               alt  = "#0072B2")
+  ) +
+  scale_fill_manual(
+    values = c(null = NA, alt = "#56B4E9")
+  ) +
+  
+  # REMOVE fill legend
+  guides(fill = "none") +
+  
+  labs(
+    title = "Power Illustration on the Z Score Scale",
+    subtitle = glue(
+      "n = {n}, mu1 = {mu1}, sigma = {sigma}, SE = {round(SE,3)}, lambda = {round(lambda,3)}, power = {round(
+        pnorm(-crit, lambda, 1) + (1 - pnorm(crit, lambda, 1)), 3)}"
+    ),
+    x = "Z-score",
+    y = "Density"
+  ) +
+  
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top")
+
+```
+
