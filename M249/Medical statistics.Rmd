@@ -422,7 +422,7 @@ CochranArmitageTest(tab_ptsd)
 # PARAMETERS YOU CAN ADJUST
 n     <- 100
 mu0   <- 0
-mu1   <- 0.5
+mu1   <- -0.5
 sigma <- 2
 alpha <- 0.05
 
@@ -438,7 +438,7 @@ SE; lambda; power
 
 ```
 ```{r}
-x <- seq(-4, 6, length.out = 2000)
+x <- seq(-6, 6, length.out = 2000)
 
 df_long <- tibble(
   x = x,
@@ -500,7 +500,11 @@ ggplot(df_long, aes(x = x, y = density, colour = distribution)) +
     x = "Z-score",
     y = "Density"
   ) +
-  
+  scale_x_continuous(
+  breaks = seq(floor(min(df_long$x)),
+               ceiling(max(df_long$x)),
+               by = 1)
+) +
   theme_minimal(base_size = 14) +
   theme(legend.position = "top")
 
