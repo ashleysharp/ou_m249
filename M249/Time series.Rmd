@@ -6,10 +6,24 @@ date: "2023-06-25"
 
 ```{r}
 library(tidyverse)
-library(readxl)
 library(janitor)
 library(haven)
 ```
+
+# Plotting and transforming
+```{r}
+df_infections <- read_sav("data/Book 2/infections.sav")
+```
+
+
+
+
+
+
+
+
+
+
 
 
 ##Weighted moving average
