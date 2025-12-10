@@ -8,11 +8,60 @@ date: "2023-06-25"
 library(tidyverse)
 library(janitor)
 library(haven)
+library(ISOweek)
 ```
 
 # Plotting and transforming
+Note: These are not isoweeks as no week 53. Starting on 1st Jan each year.
 ```{r}
-df_infections <- read_sav("data/Book 2/infections.sav")
+df_infections <- read_sav("data/Book 2/infections.sav") %>%
+  mutate(date = ymd(paste0(year, "-01-01")) + weeks(week - 1))
+```
+
+```{r}
+ggplot(df_infections, aes(x = date, y = clostridium)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(df_infections$date)),
+                                  year(max(df_infections$date)),
+                                  by = 1),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) +
+  theme_minimal()
+
+ggplot(df_infections, aes(x = date, y = rsv)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(df_infections$date)),
+                                  year(max(df_infections$date)),
+                                  by = 1),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) +
+  theme_minimal()
+
+ggplot(df_infections, aes(x = date, y = rotavirus)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(df_infections$date)),
+                                  year(max(df_infections$date)),
+                                  by = 1),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) +
+  theme_minimal()
+
+ggplot(df_infections, aes(x = date, y = salmonella)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(df_infections$date)),
+                                  year(max(df_infections$date)),
+                                  by = 1),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) +
+  theme_minimal()
 ```
 
 
