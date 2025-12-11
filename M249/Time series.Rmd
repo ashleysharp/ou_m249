@@ -8,23 +8,26 @@ date: "2023-06-25"
 library(tidyverse)
 library(janitor)
 library(haven)
+library(slider)
+library(tsibble)
 ```
 
 # Plotting and transforming
 Note: These are not isoweeks as no week 53. Starting on 1st Jan each year.
 ```{r}
-df_infections <- read_sav("data/Book 2/infections.sav") %>%
+ts_infections <- read_sav("data/Book 2/infections.sav") %>%
   mutate(date = ymd(paste0(year, "-01-01")) + weeks(week - 1),
-         log_rotavirus = log(rotavirus))
+         log_rotavirus = log(rotavirus)) %>% 
+  as_tsibble(index = date)
 ```
 
 ## Salmonella
 ```{r}
-ggplot(df_infections, aes(x = date, y = salmonella)) + 
+ggplot(ts_infections, aes(x = date, y = salmonella)) + 
   geom_line() + 
   scale_x_date(
-    breaks = make_date(year = seq(year(min(df_infections$date)),
-                                  year(max(df_infections$date)),
+    breaks = make_date(year = seq(year(min(ts_infections$date)),
+                                  year(max(ts_infections$date)),
                                   by = 1),
                        month = 1, day = 1),
     date_labels = "%Y"
@@ -35,22 +38,22 @@ ggplot(df_infections, aes(x = date, y = salmonella)) +
 
 ## Rotavirus
 ```{r}
-ggplot(df_infections, aes(x = date, y = rotavirus)) + 
+ggplot(ts_infections, aes(x = date, y = rotavirus)) + 
   geom_line() + 
   scale_x_date(
-    breaks = make_date(year = seq(year(min(df_infections$date)),
-                                  year(max(df_infections$date)),
+    breaks = make_date(year = seq(year(min(ts_infections$date)),
+                                  year(max(ts_infections$date)),
                                   by = 1),
                        month = 1, day = 1),
     date_labels = "%Y"
   ) +
   theme_minimal()
 
-ggplot(df_infections, aes(x = date, y = log_rotavirus)) + 
+ggplot(ts_infections, aes(x = date, y = log_rotavirus)) + 
   geom_line() + 
   scale_x_date(
-    breaks = make_date(year = seq(year(min(df_infections$date)),
-                                  year(max(df_infections$date)),
+    breaks = make_date(year = seq(year(min(ts_infections$date)),
+                                  year(max(ts_infections$date)),
                                   by = 1),
                        month = 1, day = 1),
     date_labels = "%Y"
@@ -61,80 +64,111 @@ ggplot(df_infections, aes(x = date, y = log_rotavirus)) +
 
 ## Airline passengers
 ```{r}
-df_airline <- read_sav("data/Book 2/airline.sav")
+ts_airline <- read_sav("data/Book 2/airline.sav") %>% clean_names() %>%
+    mutate(date = make_date(year, month, 1),
+           log_passengers = log(passengers),
+           sqrt_passengers = passengers^(1/2),
+           qrt_passengers = passengers^(1/4)) %>%
+  as_tsibble(index = date)
 ```
 
-
-
-
-
-
-##Weighted moving average
 ```{r}
-weighted_moving_average <- function(x){
-  n <- length(x)
-  if(n<3){
-    print("order must be at least 3")
-  } else if(n %% 2 == 0){
-    print("order must be odd")
-  }  else {
-    weights <- c(0.5, rep(1, n-2), 0.5)/(n-1)
-    sum(x*weights)
-  }
-}
-```
-q <- (n-1)/2
+ggplot(ts_airline, aes(x = date, y = passengers)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(ts_airline$date)),
+                                  year(max(ts_airline$date)),
+                                  by = 2),
+                       month = 1, day = 1),
+    date_labels = "%b%Y"
+  ) + theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,       # rotate labels
+      hjust = 1,        # right-justify so they align nicely
+      vjust = 1
+    )
+  )
 
-##Time series analysis
-```{r}
-airline <- read_sav("data/Book 2/airline.sav")
+ggplot(ts_airline, aes(x = date, y = log_passengers)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(ts_airline$date)),
+                                  year(max(ts_airline$date)),
+                                  by = 2),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) + theme_minimal()
+
+
+ggplot(ts_airline, aes(x = date, y = sqrt_passengers)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(ts_airline$date)),
+                                  year(max(ts_airline$date)),
+                                  by = 2),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) + theme_minimal()
+
+ggplot(ts_airline, aes(x = date, y = qrt_passengers)) + 
+  geom_line() + 
+  scale_x_date(
+    breaks = make_date(year = seq(year(min(ts_airline$date)),
+                                  year(max(ts_airline$date)),
+                                  by = 2),
+                       month = 1, day = 1),
+    date_labels = "%Y"
+  ) + theme_minimal()
 ```
+
+
 
 
 ###Decomposition
 ```{r}
-pseudo_month <- pseudo %>% count(month_floor) %>% 
-  mutate(year = year(month_floor),
-         month = month(month_floor),
-         n_ave = rollmean(n, k = 3, fill = NA, align = "center"),
-         #n_ave_log = log(n_ave),
-         #n_ave_sqrt = sqrt(n_ave)
-         m_hat = rollapply(n, width = 13, weighted_moving_average, align = "center", fill = NA),
-         Yt = n - m_hat) %>% # Yt = st + 'Wt
-  filter(year<max(year)) %>% # want complete years: partial years will have strangely high or low Fbar
-  group_by(month) %>%
-  mutate(Fj = mean(Yt, na.rm = TRUE)) %>% # Raw seasonal factor#
-  ungroup() %>%
-  group_by(year) %>% # Fbar
-  mutate(F_bar = mean(Fj)) %>% # Mean raw seasonal factor
-  ungroup() %>%
-  mutate(s_hat = Fj - F_bar, # seasonal factor
-         Zt = n - s_hat, # Seasonally adjusted series
-         Zt_ave = rollmean(Zt, k = 6, fill = NA, align = "center"),
-         W_hat = Zt - m_hat, # irregular component
-         Xt = m_hat + s_hat + W_hat) # original time series
-
-
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = n))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = n_ave))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = m_hat))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Yt))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Fj))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = F_bar))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = s_hat))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Zt))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Zt_ave))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = W_hat))
-ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Xt))
-
-sums <- pseudo_month %>% group_by(year) %>% summarise(sum_Fj = sum(Fj), sum_s_hat = sum(s_hat))
+# pseudo_month <- pseudo %>% count(month_floor) %>% 
+#   mutate(year = year(month_floor),
+#          month = month(month_floor),
+#          n_ave = rollmean(n, k = 3, fill = NA, align = "center"),
+#          #n_ave_log = log(n_ave),
+#          #n_ave_sqrt = sqrt(n_ave)
+#          m_hat = rollapply(n, width = 13, weighted_moving_average, align = "center", fill = NA),
+#          Yt = n - m_hat) %>% # Yt = st + 'Wt
+#   filter(year<max(year)) %>% # want complete years: partial years will have strangely high or low Fbar
+#   group_by(month) %>%
+#   mutate(Fj = mean(Yt, na.rm = TRUE)) %>% # Raw seasonal factor#
+#   ungroup() %>%
+#   group_by(year) %>% # Fbar
+#   mutate(F_bar = mean(Fj)) %>% # Mean raw seasonal factor
+#   ungroup() %>%
+#   mutate(s_hat = Fj - F_bar, # seasonal factor
+#          Zt = n - s_hat, # Seasonally adjusted series
+#          Zt_ave = rollmean(Zt, k = 6, fill = NA, align = "center"),
+#          W_hat = Zt - m_hat, # irregular component
+#          Xt = m_hat + s_hat + W_hat) # original time series
+# 
+# 
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = n))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = n_ave))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = m_hat))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Yt))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Fj))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = F_bar))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = s_hat))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Zt))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Zt_ave))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = W_hat))
+# ggplot(pseudo_month) + geom_line(aes(x = month_floor, y = Xt))
+# 
+# sums <- pseudo_month %>% group_by(year) %>% summarise(sum_Fj = sum(Fj), sum_s_hat = sum(s_hat))
 
 ```
 
 ###Seasonal pattern
 ```{r}
-ggplot(pseudo_month) + geom_line(aes(x = month, y = n, col = year, group = year))
-ggplot(pseudo_month) + geom_line(aes(x = month, y = s_hat, col = year, group = year))
+# ggplot(pseudo_month) + geom_line(aes(x = month, y = n, col = year, group = year))
+# ggplot(pseudo_month) + geom_line(aes(x = month, y = s_hat, col = year, group = year))
 ```
 Lowest April
 Highest October
@@ -142,19 +176,19 @@ Highest October
 ###Exponential smoothing
 
 ```{r}
-
-alpha <- 0.9612
-observed <- pseudo_month$n
-expected <- observed[1]
-for(i in 1:(length(observed)-1)){
-  expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
-}
-
-pseudo_month_exp <- pseudo_month %>% mutate(exp = expected) %>% select(month_floor, n, exp) %>% mutate(err = n-exp, err_squ = err^2)
-sse <-  sum(pseudo_month_exp$err_squ)
-sse
-
-ggplot(pseudo_month_exp %>% pivot_longer(cols = n:exp, names_to = "names", values_to = "values")) + geom_line(aes(x = month_floor, y = values, col = names))
+# 
+# alpha <- 0.9612
+# observed <- pseudo_month$n
+# expected <- observed[1]
+# for(i in 1:(length(observed)-1)){
+#   expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
+# }
+# 
+# pseudo_month_exp <- pseudo_month %>% mutate(exp = expected) %>% select(month_floor, n, exp) %>% mutate(err = n-exp, err_squ = err^2)
+# sse <-  sum(pseudo_month_exp$err_squ)
+# sse
+# 
+# ggplot(pseudo_month_exp %>% pivot_longer(cols = n:exp, names_to = "names", values_to = "values")) + geom_line(aes(x = month_floor, y = values, col = names))
 ```
 
 
@@ -166,20 +200,20 @@ sse = 10,929,568
 
 
 ```{r}
-alpha_var <- seq(0,1,0.0001)
-observed <- pseudo_month$n
-sse <- vector("integer", 0)
-
-for(j in seq_along(alpha_var)){
-  alpha <- alpha_var[j]
-  expected <- observed[1]
-  for(i in 1:(length(observed)-1)){
-    expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
-  }
-  sse[j] <- sum((observed-expected)^2)
-}
-min(sse)
-alpha_var[sse == min(sse)]
+# alpha_var <- seq(0,1,0.0001)
+# observed <- pseudo_month$n
+# sse <- vector("integer", 0)
+# 
+# for(j in seq_along(alpha_var)){
+#   alpha <- alpha_var[j]
+#   expected <- observed[1]
+#   for(i in 1:(length(observed)-1)){
+#     expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
+#   }
+#   sse[j] <- sum((observed-expected)^2)
+# }
+# min(sse)
+# alpha_var[sse == min(sse)]
 
 ```
 
