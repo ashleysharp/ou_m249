@@ -323,20 +323,97 @@ classical_components <- ts_airline %>%
 autoplot(classical_components)
 ```
 
-
-
-
-
 ## Temperature
 
 ```{r}
-ggplot(ts_alltemps, aes(x = year, y = temperature)) + 
+ts_temperature3 <- read_sav("data/Book 2/temperature3.sav") %>% 
+  clean_names() %>%
+    mutate(
+      year_month = yearmonth(
+        sprintf("%d-%02d", year, month))) %>%
+  as_tsibble(index = year_month)
+```
+
+
+```{r}
+ggplot(ts_temperature3, aes(x = year_month, y = temperature)) + 
   geom_line() + 
-  scale_x_continuous(breaks = year_breaks) +
-  scale_y_continuous(limits = temp_range) +
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
   theme_minimal()
 ```
 
+```{r}
+weights <- c(0.5, rep(1, 11), 0.5)
+weights <- weights / sum(weights)
+weights
+sum(weights)
+```
+```{r}
+ts_temperature3_dec <- ts_temperature3 %>% 
+  select(year, month, year_month, Xt = temperature) %>%
+  mutate(
+    mt_hat = slide_dbl(
+      .x = Xt,
+      .f = ~ weighted.mean(.x, w = weights, na.rm = TRUE),
+      .before = 6,
+      .after  = 6,
+      .complete = TRUE),
+    Yt = Xt - mt_hat) %>%
+  group_by(month) %>%
+  mutate(Fj = mean(Yt, na.rm = TRUE)) %>%
+  ungroup()
+
+F_bar <- ts_temperature3_dec %>% 
+  distinct(month, Fj) %>% 
+  summarise(F_bar = mean(Fj)) %>% 
+  pull(F_bar)
+
+ts_temperature3_dec <- ts_temperature3_dec %>%
+  mutate(st_hat = Fj - F_bar)
+
+ts_temperature3_dec %>% 
+  distinct(month, st_hat) 
+```
+
+Further smoothing of seasonally adjusted plot using moving average of order 35
+```{r}
+ts_temperature3_dec <- ts_temperature3_dec %>%
+  mutate(Zt = Xt - st_hat,
+         ma35 = slide_dbl(Zt, mean, .before = 17, .after = 17, .complete = TRUE),
+         Wt = Zt - ma35)
+```
+
+```{r}
+ggplot(ts_temperature3_dec, aes(x = year_month, y = Xt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_temperature3_dec, aes(x = year_month, y = st_hat)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_temperature3_dec, aes(x = year_month, y = Zt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_temperature3_dec, aes(x = year_month, y = mt_hat)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_temperature3_dec, aes(x = year_month, y = ma35)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_temperature3_dec, aes(x = year_month, y = Wt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+```
 
 
 Exponential smoothing
