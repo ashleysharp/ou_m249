@@ -383,6 +383,7 @@ ts_temperature3_dec <- ts_temperature3_dec %>%
          Wt = Zt - ma35)
 ```
 
+Seasonal component dominates, followed by random component then trend component.
 ```{r}
 ggplot(ts_temperature3_dec, aes(x = year_month, y = Xt)) + 
   geom_line() + 
