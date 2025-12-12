@@ -10,6 +10,7 @@ library(janitor)
 library(haven)
 library(slider)
 library(tsibble)
+library(feasts)
 ```
 
 # Plotting and transforming
@@ -38,13 +39,18 @@ ggplot(ts_infections, aes(x = date, y = salmonella)) +
 
 ## Rotavirus
 ```{r}
+year_breaks <- make_date(
+  year  = seq(year(min(ts_infections$date)),
+              year(max(ts_infections$date)),
+              by = 1),
+  month = 1,
+  day   = 1
+)
+
 ggplot(ts_infections, aes(x = date, y = rotavirus)) + 
   geom_line() + 
   scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_infections$date)),
-                                  year(max(ts_infections$date)),
-                                  by = 1),
-                       month = 1, day = 1),
+    breaks = year_breaks,
     date_labels = "%Y"
   ) +
   theme_minimal()
@@ -52,10 +58,7 @@ ggplot(ts_infections, aes(x = date, y = rotavirus)) +
 ggplot(ts_infections, aes(x = date, y = log_rotavirus)) + 
   geom_line() + 
   scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_infections$date)),
-                                  year(max(ts_infections$date)),
-                                  by = 1),
-                       month = 1, day = 1),
+    breaks = year_breaks,
     date_labels = "%Y"
   ) +
   theme_minimal()
@@ -64,68 +67,279 @@ ggplot(ts_infections, aes(x = date, y = log_rotavirus)) +
 
 ## Airline passengers
 ```{r}
-ts_airline <- read_sav("data/Book 2/airline.sav") %>% clean_names() %>%
-    mutate(date = make_date(year, month, 1),
-           log_passengers = log(passengers),
-           sqrt_passengers = passengers^(1/2),
-           qrt_passengers = passengers^(1/4)) %>%
-  as_tsibble(index = date)
+ts_airline <- read_sav("data/Book 2/airline.sav") %>% 
+  clean_names() %>%
+  mutate(
+    year_month = yearmonth(sprintf("%d-%02d", year, month)),
+    log_passengers = log(passengers),
+    sqrt_passengers = passengers^(1/2),
+    qrt_passengers = passengers^(1/4)
+  ) %>%
+  as_tsibble(index = year_month)
 ```
 
 ```{r}
-ggplot(ts_airline, aes(x = date, y = passengers)) + 
+ggplot(ts_airline, aes(x = year_month, y = passengers)) + 
   geom_line() + 
-  scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_airline$date)),
-                                  year(max(ts_airline$date)),
-                                  by = 2),
-                       month = 1, day = 1),
-    date_labels = "%b%Y"
-  ) + theme_minimal() +
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal() +
   theme(
     axis.text.x = element_text(
-      angle = 45,       # rotate labels
-      hjust = 1,        # right-justify so they align nicely
+      angle = 45,
+      hjust = 1,
       vjust = 1
     )
   )
 
-ggplot(ts_airline, aes(x = date, y = log_passengers)) + 
+ggplot(ts_airline, aes(x = year_month, y = log_passengers)) + 
   geom_line() + 
-  scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_airline$date)),
-                                  year(max(ts_airline$date)),
-                                  by = 2),
-                       month = 1, day = 1),
-    date_labels = "%Y"
-  ) + theme_minimal()
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline, aes(x = year_month, y = sqrt_passengers)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline, aes(x = year_month, y = qrt_passengers)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+```
+
+# Moving averages
+
+## Temperature
+```{r}
+ts_alltemps <- read_sav("data/Book 2/alltemps.sav") %>% 
+  clean_names() %>%
+  as_tsibble(index = year) %>% 
+  mutate(ma5 = slide_dbl(temperature, mean, .before = 2, .after = 2, .complete = TRUE),
+         ma31 = slide_dbl(temperature, mean, .before = 15, .after = 15, .complete = TRUE))
+```
+
+```{r}
+year_breaks <- seq(
+  min(ts_alltemps$year),
+  max(ts_alltemps$year),
+  by = 25
+)
+
+temp_range <- range(ts_alltemps$temperature, na.rm = TRUE)
+
+ggplot(ts_alltemps, aes(x = year, y = temperature)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = year_breaks) +
+  scale_y_continuous(limits = temp_range) +
+  theme_minimal()
+
+ggplot(ts_alltemps, aes(x = year, y = ma5)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = year_breaks) +
+  scale_y_continuous(limits = temp_range) +
+  theme_minimal()
+
+ggplot(ts_alltemps, aes(x = year, y = ma31)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = year_breaks) +
+  scale_y_continuous(limits = temp_range) +
+  theme_minimal()
+```
+
+## Securities
+
+```{r}
+ts_securities <- read_sav("data/Book 2/securities.sav") %>% 
+  clean_names() %>%
+  mutate(
+    year_month = yearmonth(sprintf("%d-%02d", year, month))
+  ) %>%
+  as_tsibble(index = year_month) %>% 
+  mutate(
+    ma9  = slide_dbl(yield, mean, .before = 4,  .after = 4,  .complete = TRUE),
+    ma21 = slide_dbl(yield, mean, .before = 10, .after = 10, .complete = TRUE)
+  )
+```
+
+```{r}
+y_range <- range(ts_securities$yield, na.rm = TRUE)
+
+ggplot(ts_securities, aes(x = year_month, y = yield)) + 
+  geom_line() +
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  scale_y_continuous(limits = y_range) +
+  theme_minimal()
+
+ggplot(ts_securities, aes(x = year_month, y = ma9)) + 
+  geom_line() +
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  scale_y_continuous(limits = y_range) +
+  theme_minimal()
+
+ggplot(ts_securities, aes(x = year_month, y = ma21)) + 
+  geom_line() +
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  scale_y_continuous(limits = y_range) +
+  theme_minimal()
+```
 
 
-ggplot(ts_airline, aes(x = date, y = sqrt_passengers)) + 
-  geom_line() + 
-  scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_airline$date)),
-                                  year(max(ts_airline$date)),
-                                  by = 2),
-                       month = 1, day = 1),
-    date_labels = "%Y"
-  ) + theme_minimal()
+# Decomposition
 
-ggplot(ts_airline, aes(x = date, y = qrt_passengers)) + 
+## Airline passengers
+
+### Additive model Xt = mt + st + Wt
+
+```{r}
+weights <- c(0.5, rep(1, 11), 0.5)
+weights <- weights / sum(weights)
+weights
+sum(weights)
+```
+
+### Estimate trend mt_hat
+```{r}
+ts_airline_dec <- ts_airline %>% 
+  select(year, month, year_month, Xt = qrt_passengers) %>%
+  mutate(
+    mt_hat = slide_dbl(
+      .x = Xt,
+      .f = ~ weighted.mean(.x, w = weights, na.rm = TRUE),
+      .before = 6,
+      .after  = 6,
+      .complete = TRUE))
+```
+
+### Remove trend Yt = Xt - mt_hat
+Yt = Xt - mt_hat
+  = mt + st + Wt - mt_hat
+  = st + Wt + (mt - mt_hat)
+  = st + W't
+  
+(where W't = Wt + (mt - mt_hat))
+
+```{r}
+ts_airline_dec <- ts_airline_dec %>% 
+  mutate(Yt = Xt - mt_hat)
+```
+
+### Raw seasonal factors Fj = mean (Yt)
+```{r}
+ts_airline_dec <- ts_airline_dec %>% 
+  group_by(month) %>%
+  mutate(Fj = mean(Yt, na.rm = TRUE)) %>%
+  ungroup()
+
+ts_airline_dec %>% distinct(month, Fj)
+```
+
+### Adj. seasonal factors st_hat = Fj - F_bar
+```{r}
+F_bar <- ts_airline_dec %>% 
+  distinct(month, Fj) %>% 
+  summarise(F_bar = mean(Fj)) %>% 
+  pull(F_bar)
+
+ts_airline_dec <- ts_airline_dec %>%
+  mutate(st_hat = Fj - F_bar)
+```
+
+
+```{r}
+ts_airline_season <- ts_airline_dec %>% distinct(month, Fj, F_bar, sj_hat = st_hat)
+ts_airline_season
+```
+
+```{r}
+mean(ts_airline_season$sj_hat)
+```
+
+### Seasonally adjusted series Zt Xt - st_hat
+
+Zt = Xt = st_hat
+  = mt + Wt + (st - st_hat)
+  = mt + W't
+  
+Where W't = Wt + (st - st_hat)
+
+```{r}
+ts_airline_dec <- ts_airline_dec %>%
+  mutate(Zt = Xt - st_hat)
+```
+
+
+### Irregular component
+```{r}
+ts_airline_dec <- ts_airline_dec %>%
+  mutate(Wt = Zt - mt_hat)
+```
+
+
+### Plots
+```{r}
+ggplot(ts_airline_dec, aes(x = year_month, y = Xt)) + 
   geom_line() + 
-  scale_x_date(
-    breaks = make_date(year = seq(year(min(ts_airline$date)),
-                                  year(max(ts_airline$date)),
-                                  by = 2),
-                       month = 1, day = 1),
-    date_labels = "%Y"
-  ) + theme_minimal()
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline_dec, aes(x = year_month, y = mt_hat)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline_dec, aes(x = year_month, y = Yt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline_dec, aes(x = year_month, y = st_hat)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline_dec, aes(x = year_month, y = Zt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+
+ggplot(ts_airline_dec, aes(x = year_month, y = Wt)) + 
+  geom_line() + 
+  scale_x_yearmonth(date_breaks = "2 years", date_labels = "%Y") +
+  theme_minimal()
+```
+
+### Classical decomposition
+```{r}
+classical_components <- ts_airline %>% 
+  model(
+    classical = classical_decomposition(
+      qrt_passengers,
+      type = "additive"
+    )
+  ) %>% 
+  components()
+
+# Plot
+autoplot(classical_components)
 ```
 
 
 
 
-###Decomposition
+
+## Temperature
+
+```{r}
+ggplot(ts_alltemps, aes(x = year, y = temperature)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = year_breaks) +
+  scale_y_continuous(limits = temp_range) +
+  theme_minimal()
+```
+
+
+
+Decomposition
 ```{r}
 # pseudo_month <- pseudo %>% count(month_floor) %>% 
 #   mutate(year = year(month_floor),
@@ -165,7 +379,7 @@ ggplot(ts_airline, aes(x = date, y = qrt_passengers)) +
 
 ```
 
-###Seasonal pattern
+Seasonal pattern
 ```{r}
 # ggplot(pseudo_month) + geom_line(aes(x = month, y = n, col = year, group = year))
 # ggplot(pseudo_month) + geom_line(aes(x = month, y = s_hat, col = year, group = year))
@@ -173,7 +387,7 @@ ggplot(ts_airline, aes(x = date, y = qrt_passengers)) +
 Lowest April
 Highest October
 
-###Exponential smoothing
+Exponential smoothing
 
 ```{r}
 # 
