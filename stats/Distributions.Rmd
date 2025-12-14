@@ -341,9 +341,9 @@ str_c("CI = ", paste(round(CI,3), collapse = ", "))
 #### 1. Model
 
 ```{r}
-p <- 0.8
+p <- 0.5
 str_c("p = ", p)
-range <- 1:10 #1,2,3,..., unbounded to the right
+range <- 1:20 #1,2,3,..., unbounded to the right
 #p.m.f.
 dg <- function(x, p){
         ((1-p)^(x-1))*p
@@ -385,7 +385,7 @@ p_hat <- 1/sample_mean #biased
 str_c('sample_mean = ', round(sample_mean,2), ", p_hat = ", round(p_hat,2))
 ```
 
-#### b. Likelhood
+#### b. Likelihood
 
 ```{r}
 theta <- seq(0,1,0.001)
