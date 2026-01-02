@@ -11,6 +11,8 @@ library(haven)
 library(slider)
 library(tsibble)
 library(feasts)
+library(fable)
+library(fabletools)
 ```
 
 # Plotting and transforming
@@ -416,48 +418,304 @@ ggplot(ts_temperature3_dec, aes(x = year_month, y = Wt)) +
   theme_minimal()
 ```
 
+# Simple exponential smoothing
 
-Exponential smoothing
+## Chemical process
+
 ```{r}
-# 
-# alpha <- 0.9612
-# observed <- pseudo_month$n
-# expected <- observed[1]
-# for(i in 1:(length(observed)-1)){
-#   expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
-# }
-# 
-# pseudo_month_exp <- pseudo_month %>% mutate(exp = expected) %>% select(month_floor, n, exp) %>% mutate(err = n-exp, err_squ = err^2)
-# sse <-  sum(pseudo_month_exp$err_squ)
-# sse
-# 
-# ggplot(pseudo_month_exp %>% pivot_longer(cols = n:exp, names_to = "names", values_to = "values")) + geom_line(aes(x = month_floor, y = values, col = names))
+ts_chemical <- read_sav("data/Book 2/chemical.sav") %>% 
+  mutate(n = row_number()) %>%
+  as_tsibble(index = n)
+```
+
+### Fit model
+```{r}
+fit_chemical <- ts_chemical %>%
+  model(ses = ETS(temperature ~ error("A") + trend("N") + season("N")))
+```
+
+```{r}
+components(fit_chemical)
+aug_chemical <- augment(fit_chemical)
+aug_chemical
+```
+
+### Multiple time plot
+```{r}
+fit_chemical_long <- augment(fit_chemical) %>%
+  pivot_longer(cols = c(temperature, .fitted),
+               names_to = "legend")
+
+ggplot(fit_chemical_long) + 
+  geom_line(aes(x = n, y = value, col = legend)) + 
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_chemical)
+```
+
+### Goodness of fit
+```{r}
+glance(fit_chemical) %>% mutate(RMSE = sqrt(MSE))
+```
+
+```{r}
+SSE <- sum(aug_chemical$.resid^2)
+RMSE <- sqrt(mean(aug_chemical$.resid^2))
+SSE
+RMSE
+```
+
+Adjust for df
+```{r}
+n <- length(aug_chemical$.resid)
+k <- 1   # one smoothing parameter, alpha; could also consider l[0], sigma^2 for ETS(A,N,N)
+
+RMSE_df <- sqrt(sum(aug_chemical$.resid^2) / (n - k))
+RMSE_df
+SSE_df <- (n - k)*RMSE_df^2
+SSE_df
+```
+
+```{r}
+ggplot(augment(fit_chemical)) + 
+  geom_line(aes(x = n, y = .innov)) + 
+  theme_minimal()
+```
+
+### Ljung-Box test
+```{r}
+augment(fit_chemical) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+e <- augment(fit_chemical)$.innov
+Box.test(e, lag = 18, type = "Ljung-Box")
+```
+### Forecast
+
+```{r}
+future5 <- tsibble::new_data(ts_chemical, n = 5)
+
+fit_chemical %>% forecast(new_data = future5)
+```
+
+```{r}
+fc_chemical <- fit_chemical %>% 
+  forecast() %>% 
+  slice(1:5)
+
+fc_chemical %>%
+  hilo(level = 95) %>%
+  unpack_hilo(`95%`) %>%
+  mutate(lo_95 = quantile(temperature, 0.025), #Alternative approach
+         hi_95 = quantile(temperature, 0.975))
+```
+
+```{r}
+autoplot(fc_chemical, ts_chemical) +
+  theme_minimal()
+```
+
+## Precipitation
+
+```{r}
+ts_precipitation <- read_sav("data/Book 2/Taourirt.sav") %>%
+  mutate(year = 1967:1997) %>%
+  as_tsibble(index = year)
+```
+
+```{r}
+fit_precipitation <- ts_precipitation %>%
+  model(ses = ETS(precipitation ~ error("A") + trend("N") + season("N")))
+```
+
+```{r}
+fit_precipitation_long <- augment(fit_precipitation) %>%
+  pivot_longer(cols = c(precipitation, .fitted),
+               names_to = "legend")
+
+ggplot(fit_precipitation_long) + 
+  geom_line(aes(x = year, y = value, col = legend)) + 
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_precipitation)
+```
+
+```{r}
+glance(fit_precipitation)
+```
+
+```{r}
+augment(fit_precipitation) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+fc_precipitation <- fit_precipitation %>% forecast(h = 4)
+fc_precipitation
+```
+
+```{r}
+autoplot(fc_precipitation, ts_precipitation) + theme_minimal()
+```
+
+# Holt's exponential smoothing
+## Airline passengers
+
+Note: fourth root of passenger numbers
+```{r}
+ts_airline5 <- read_sav("data/Book 2/airline5.sav") %>% 
+  clean_names() %>%
+  as_tsibble(index = year)
+```
+
+```{r}
+fit_airline5 <- ts_airline5 %>%
+  model(ses = ETS(fpass ~ error("A") + trend("N") + season("N")),
+        holt = ETS(fpass ~ error("A") + trend("A") + season("N")))
+```
+
+```{r}
+fit_airline5_long <- augment(fit_airline5) %>%
+  pivot_longer(cols = c(fpass, .fitted),
+               names_to = "legend")
+
+ggplot(fit_airline5_long) + 
+  geom_line(aes(x = year, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_airline5) %>% mutate(estimate = round(estimate, 4))
+```
+
+```{r}
+glance(fit_airline5)
+```
+
+```{r}
+augment(fit_airline5) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+fc_airline5 <- fit_airline5 %>% 
+  forecast(h = 5) %>% 
+  filter(.model == "holt") %>%
+  mutate(passengers = .mean^4)
+fc_airline5
+```
+```{r}
+autoplot(fc_airline5, ts_airline5) + theme_minimal()
 ```
 
 
-alpha = 0.9612
-sse = 10,773,677
-
-alpha = 0.8470155
-sse = 10,929,568
-
-
+## UK index of production
 ```{r}
-# alpha_var <- seq(0,1,0.0001)
-# observed <- pseudo_month$n
-# sse <- vector("integer", 0)
-# 
-# for(j in seq_along(alpha_var)){
-#   alpha <- alpha_var[j]
-#   expected <- observed[1]
-#   for(i in 1:(length(observed)-1)){
-#     expected[i+1] <- alpha*observed[i]+(1-alpha)*expected[i]
-#   }
-#   sse[j] <- sum((observed-expected)^2)
-# }
-# min(sse)
-# alpha_var[sse == min(sse)]
-
+ts_production <- read_sav("data/Book 2/production.sav") %>% 
+  clean_names() %>%
+  mutate(year_quarter = yearquarter(date)) %>%
+  as_tsibble(index = year_quarter)
 ```
 
+```{r}
+fit_production <- ts_production %>%
+  model(ses = ETS(index ~ error("A") + trend("N") + season("N")),
+        holt = ETS(index ~ error("A") + trend("A") + season("N")))
+```
+
+```{r}
+fit_production_long <- augment(fit_production) %>%
+  pivot_longer(cols = c(index, .fitted),
+               names_to = "legend")
+
+ggplot(fit_production_long) + 
+  geom_line(aes(x = year_quarter, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_production) %>% mutate(estimate = round(estimate, 4))
+```
+
+```{r}
+glance(fit_production)
+```
+
+```{r}
+augment(fit_production) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+fc_production <- fit_production %>% 
+  forecast(h = 5) %>% 
+  filter(.model == "holt")
+fc_production
+```
+
+```{r}
+autoplot(fc_production, ts_production)
+```
+
+# Holt-Winters' exponential smoothing
+## Clostridium difficile
+
+```{r}
+ts_infections2 <- read_sav("data/Book 2/infections2.sav") %>%
+  clean_names() %>%
+  mutate(year_quarter = yearquarter(date)) %>%
+  as_tsibble(index = year_quarter)
+```
+
+```{r}
+fit_infections2 <- ts_infections2 %>%
+  model(ses = ETS(clostridium ~ error("A") + trend("N") + season("N")),
+        holt = ETS(clostridium ~ error("A") + trend("A") + season("N")),
+        holt_wint = ETS(clostridium ~ error("A") + trend("A") + season("A")))
+```
+
+```{r}
+fit_infections2_long <- augment(fit_infections2) %>%
+  pivot_longer(cols = c(clostridium, .fitted),
+               names_to = "legend")
+
+ggplot(fit_infections2_long) + 
+  geom_line(aes(x = year_quarter, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_infections2) %>% mutate(estimate = round(estimate, 4))
+```
+
+```{r}
+glance(fit_infections2)
+```
+
+```{r}
+augment(fit_infections2) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+fc_infections2 <- fit_infections2 %>% 
+  forecast(h = 5) %>% 
+  filter(.model == "holt_wint")
+fc_infections2
+```
+
+```{r}
+autoplot(fc_infections2, ts_infections2) + theme_minimal()
+```
+
+```{r}
+autoplot(ts_infections2) +
+  autolayer(fitted(fit_infections2[3]), colour = "orange") +
+  autolayer(forecast(fit_infections2[3], h = 4), level = c(80, 95)) +
+  theme_minimal()
+```
 
