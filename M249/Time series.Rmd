@@ -713,9 +713,70 @@ autoplot(fc_infections2, ts_infections2) + theme_minimal()
 ```
 
 ```{r}
-autoplot(ts_infections2) +
-  autolayer(fitted(fit_infections2[3]), colour = "orange") +
+autoplot(ts_infections2, clostridium) +
+  autolayer(fitted(fit_infections2[3]), .fitted, colour = "orange") +
   autolayer(forecast(fit_infections2[3], h = 4), level = c(80, 95)) +
   theme_minimal()
 ```
 
+
+## Electricity
+
+```{r}
+ts_electricity <- read_sav("data/Book 2/electricity.sav") %>%
+  clean_names() %>%
+  mutate(year_month = yearmonth(sprintf("%d-%02d", year, month)),
+         logdemand = log(demand)) %>%
+  as_tsibble(index = year_month)
+```
+
+```{r}
+ggplot(ts_electricity, aes(x = year_month, y = demand)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_electricity, aes(x = year_month, y = logdemand)) + 
+  geom_line() + 
+  theme_minimal()
+```
+
+```{r}
+fit_electricity <- ts_electricity %>%
+  model(ses = ETS(logdemand ~ error("A") + trend("N") + season("N")),
+        holt = ETS(logdemand ~ error("A") + trend("A") + season("N")),
+        holt_wint = ETS(logdemand ~ error("A") + trend("A") + season("A")))
+```
+
+```{r}
+fit_electricity_long <- augment(fit_electricity) %>%
+  pivot_longer(cols = c(logdemand, .fitted),
+               names_to = "legend")
+
+ggplot(fit_electricity_long) + 
+  geom_line(aes(x = year_month, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_electricity) %>% mutate(estimate = round(estimate, 4))
+```
+
+```{r}
+glance(fit_electricity) %>% mutate(RMSE = sqrt(MSE))
+```
+
+```{r}
+augment(fit_electricity) %>% features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+fc_electricity <- fit_electricity %>% 
+  forecast(h = 12) %>% 
+  filter(.model == "holt_wint")
+fc_electricity
+```
+
+```{r}
+autoplot(fc_electricity, ts_electricity) + theme_minimal()
+```
