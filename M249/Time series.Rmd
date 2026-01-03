@@ -780,3 +780,132 @@ fc_electricity
 ```{r}
 autoplot(fc_electricity, ts_electricity) + theme_minimal()
 ```
+
+
+# Correlograms and forecasting
+
+## Airline passengers
+```{r}
+ts_airline6 <- read_sav("data/Book 2/airline6.sav") %>% 
+  clean_names() %>%
+  as_tsibble(index = year)
+```
+
+### ACF
+```{r}
+acf_airline6 <- ts_airline6 %>% ACF(error, lag_max = 20)
+acf_airline6
+```
+
+```{r}
+acf_airline6 %>% autoplot() + theme_minimal()
+```
+
+```{r}
+ts_airline6 %>% features(error, ljung_box, lag = 20)
+```
+
+
+## Chemical process
+```{r}
+ts_chemical2 <- read_sav("data/Book 2/chemical2.sav") %>% 
+  mutate(n = row_number()) %>%
+  as_tsibble(index = n)
+```
+
+
+```{r}
+acf_chemical2 <- ts_chemical2 %>% ACF(error, lag_max = 20)
+acf_chemical2
+```
+
+```{r}
+acf_chemical2 %>% autoplot() + theme_minimal()
+```
+
+```{r}
+ts_chemical2 %>% features(error, ljung_box, lag = 20)
+```
+
+```{r}
+ggplot(ts_chemical2, aes(x = error)) + 
+  geom_histogram(binwidth = 4) + 
+  theme_minimal()
+```
+
+## Vessel arrivals
+
+
+```{r}
+ts_tonnage <- read_sav("data/Book 2/tonnage.sav") %>%
+  clean_names() %>%
+  mutate(year_month = yearmonth(sprintf("%d-%02d", year, month))) %>%
+  as_tsibble(index = year_month)
+```
+
+```{r}
+ggplot(ts_tonnage, aes(x = year_month, y = tonnage)) + 
+  geom_line() + 
+  theme_minimal()
+```
+
+```{r}
+fit_tonnage <- ts_tonnage %>%
+  model(holt_wint = ETS(tonnage ~ error("A") + trend("A") + season("A")))
+```
+
+```{r}
+fit_tonnage_long <- augment(fit_tonnage) %>%
+  pivot_longer(cols = c(tonnage, .fitted),
+               names_to = "legend")
+
+ggplot(fit_tonnage_long) + 
+  geom_line(aes(x = year_month, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_tonnage) %>% mutate(estimate = round(estimate, 4))
+```
+
+```{r}
+glance(fit_tonnage) %>% mutate(RMSE = sqrt(MSE))
+```
+
+```{r}
+augment(fit_tonnage) %>% features(.innov, ljung_box, lag = 18) %>%
+  mutate(across(where(is.numeric), round, 3))
+```
+
+```{r}
+acf_tonnage <- augment(fit_tonnage) %>% 
+  ACF(.innov, lag_max = 20)
+acf_tonnage
+```
+
+```{r}
+acf_tonnage %>% autoplot() + theme_minimal()
+```
+
+```{r}
+ggplot(augment(fit_tonnage), aes(x = year_month, y = .innov)) + 
+  geom_line() + 
+  theme_minimal()
+```
+
+```{r}
+ggplot(augment(fit_tonnage), aes(x = .innov)) + geom_histogram(binwidth = 250) + theme_minimal()
+```
+
+```{r}
+fc_tonnage <- fit_tonnage %>% 
+  forecast(h = 12)
+fc_tonnage
+```
+
+```{r}
+autoplot(fc_tonnage, ts_tonnage) + theme_minimal()
+```
+
+
