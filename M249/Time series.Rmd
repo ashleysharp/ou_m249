@@ -434,8 +434,13 @@ fit_chemical <- ts_chemical %>%
   model(ses = ETS(temperature ~ error("A") + trend("N") + season("N")))
 ```
 
+### Components
 ```{r}
 components(fit_chemical)
+```
+
+### Augment
+```{r}
 aug_chemical <- augment(fit_chemical)
 aug_chemical
 ```
@@ -590,6 +595,14 @@ ggplot(fit_airline5_long) +
 ```
 
 ```{r}
+components(fit_airline5)
+```
+
+```{r}
+augment(fit_airline5)
+```
+
+```{r}
 tidy(fit_airline5) %>% mutate(estimate = round(estimate, 4))
 ```
 
@@ -688,6 +701,15 @@ ggplot(fit_infections2_long) +
   facet_grid(vars(.model)) +
   theme_minimal()
 ```
+
+```{r}
+components(fit_infections2)
+```
+
+```{r}
+augment(fit_infections2)
+```
+
 
 ```{r}
 tidy(fit_infections2) %>% mutate(estimate = round(estimate, 4))
@@ -801,6 +823,7 @@ acf_airline6
 acf_airline6 %>% autoplot() + theme_minimal()
 ```
 
+### Ljung-Box test
 ```{r}
 ts_airline6 %>% features(error, ljung_box, lag = 20)
 ```
@@ -834,7 +857,6 @@ ggplot(ts_chemical2, aes(x = error)) +
 ```
 
 ## Vessel arrivals
-
 
 ```{r}
 ts_tonnage <- read_sav("data/Book 2/tonnage.sav") %>%
@@ -908,4 +930,137 @@ fc_tonnage
 autoplot(fc_tonnage, ts_tonnage) + theme_minimal()
 ```
 
+```{r}
+components(fit_tonnage)
+```
 
+# Stationary time series
+
+
+## UK index of production
+
+### Differencing
+```{r}
+ts_production_diff <- ts_production %>% mutate(
+  d1_index = difference(index),
+  d2_index = difference(d1_index))
+```
+
+```{r}
+ggplot(ts_production_diff, aes(x = year_quarter, y = index)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_production_diff, aes(x = year_quarter, y = d1_index)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_production_diff, aes(x = year_quarter, y = d2_index)) + 
+  geom_line() + 
+  theme_minimal()
+```
+## FTSE100
+
+```{r}
+ts_ftse <- read_sav("data/Book 2/ftse100.sav") %>% 
+  clean_names() %>%
+  mutate(year_month = yearmonth(sprintf("%d-%02d", year, month))
+  ) %>%
+  as_tsibble(index = year_month) %>%
+  mutate(
+    d1_ftse = difference(ftse),
+    d1_logftse = difference(logftse)
+  )
+```
+
+```{r}
+ggplot(ts_ftse, aes(x = year_month, y = ftse)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_ftse, aes(x = year_month, y = d1_ftse)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_ftse, aes(x = year_month, y = logftse)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_ftse, aes(x = year_month, y = d1_logftse)) + 
+  geom_line() + 
+  theme_minimal()
+```
+
+## Airline passengers
+
+```{r}
+ts_airline5_diff <- ts_airline5 %>%
+  mutate(d1_passengers = difference(passengers),
+         log_passengers = log(passengers),
+         d1_log_passengers = difference(log_passengers),
+         d2_log_passengers = difference(d1_log_passengers))
+```
+
+```{r}
+ggplot(ts_airline5_diff, aes(x = year, y = passengers)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_airline5_diff, aes(x = year, y = d1_passengers)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_airline5_diff, aes(x = year, y = log_passengers)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_airline5_diff, aes(x = year, y = d1_log_passengers)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_airline5_diff, aes(x = year, y = d2_log_passengers)) + 
+  geom_line() + 
+  theme_minimal()
+
+```
+
+## Electricity
+
+```{r}
+ts_electricity_diff = ts_electricity %>%
+  mutate(log_sademand = log(sademand),
+         d1_log_sademand = difference(log_sademand))
+```
+
+```{r}
+ggplot(ts_electricity_diff, aes(x = year_month, y = sademand)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_electricity_diff, aes(x = year_month, y = log_sademand)) + 
+  geom_line() + 
+  theme_minimal()
+
+ggplot(ts_electricity_diff, aes(x = year_month, y = d1_log_sademand)) + 
+  geom_line() + 
+  theme_minimal()
+```
+
+# ARIMA modelling
+
+## FTSE100
+### ACF
+```{r}
+ts_ftse %>% ACF(d1_logftse, lag_max = 20) %>% autoplot() + theme_minimal()
+```
+
+```{r}
+ts_ftse %>% features(d1_logftse, ljung_box, lag = 20)
+```
+
+### PACF
+```{r}
+ts_ftse %>% PACF(d1_logftse, lag_max = 20) %>% autoplot() + theme_minimal()
+```
+
+The stationary series is uncorrelated so a suitable model for log ftse is ARIMA(0,1,0)
