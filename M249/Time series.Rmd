@@ -13,14 +13,15 @@ library(tsibble)
 library(feasts)
 library(fable)
 library(fabletools)
+library(ggtime)
 ```
 
 # Plotting and transforming
 Note: These are not isoweeks as no week 53. Starting on 1st Jan each year.
 ```{r}
-ts_infections <- read_sav("data/Book 2/infections.sav") %>%
+ts_infections <- read_sav("data/Book 2/infections.sav") |>
   mutate(date = ymd(paste0(year, "-01-01")) + weeks(week - 1),
-         log_rotavirus = log(rotavirus)) %>% 
+         log_rotavirus = log(rotavirus)) |> 
   as_tsibble(index = date)
 ```
 
@@ -69,14 +70,14 @@ ggplot(ts_infections, aes(x = date, y = log_rotavirus)) +
 
 ## Airline passengers
 ```{r}
-ts_airline <- read_sav("data/Book 2/airline.sav") %>% 
-  clean_names() %>%
+ts_airline <- read_sav("data/Book 2/airline.sav") |> 
+  clean_names() |>
   mutate(
     year_month = yearmonth(sprintf("%d-%02d", year, month)),
     log_passengers = log(passengers),
     sqrt_passengers = passengers^(1/2),
     qrt_passengers = passengers^(1/4)
-  ) %>%
+  ) |>
   as_tsibble(index = year_month)
 ```
 
@@ -113,9 +114,9 @@ ggplot(ts_airline, aes(x = year_month, y = qrt_passengers)) +
 
 ## Temperature
 ```{r}
-ts_alltemps <- read_sav("data/Book 2/alltemps.sav") %>% 
-  clean_names() %>%
-  as_tsibble(index = year) %>% 
+ts_alltemps <- read_sav("data/Book 2/alltemps.sav") |> 
+  clean_names() |>
+  as_tsibble(index = year) |> 
   mutate(ma5 = slide_dbl(temperature, mean, .before = 2, .after = 2, .complete = TRUE),
          ma31 = slide_dbl(temperature, mean, .before = 15, .after = 15, .complete = TRUE))
 ```
@@ -151,12 +152,12 @@ ggplot(ts_alltemps, aes(x = year, y = ma31)) +
 ## Securities
 
 ```{r}
-ts_securities <- read_sav("data/Book 2/securities.sav") %>% 
-  clean_names() %>%
+ts_securities <- read_sav("data/Book 2/securities.sav") |> 
+  clean_names() |>
   mutate(
     year_month = yearmonth(sprintf("%d-%02d", year, month))
-  ) %>%
-  as_tsibble(index = year_month) %>% 
+  ) |>
+  as_tsibble(index = year_month) |> 
   mutate(
     ma9  = slide_dbl(yield, mean, .before = 4,  .after = 4,  .complete = TRUE),
     ma21 = slide_dbl(yield, mean, .before = 10, .after = 10, .complete = TRUE)
@@ -201,8 +202,8 @@ sum(weights)
 
 ### Estimate trend mt_hat
 ```{r}
-ts_airline_dec <- ts_airline %>% 
-  select(year, month, year_month, Xt = qrt_passengers) %>%
+ts_airline_dec <- ts_airline |> 
+  select(year, month, year_month, Xt = qrt_passengers) |>
   mutate(
     mt_hat = slide_dbl(
       .x = Xt,
@@ -221,34 +222,34 @@ Yt = Xt - mt_hat
 (where W't = Wt + (mt - mt_hat))
 
 ```{r}
-ts_airline_dec <- ts_airline_dec %>% 
+ts_airline_dec <- ts_airline_dec |> 
   mutate(Yt = Xt - mt_hat)
 ```
 
 ### Raw seasonal factors Fj = mean (Yt)
 ```{r}
-ts_airline_dec <- ts_airline_dec %>% 
-  group_by(month) %>%
-  mutate(Fj = mean(Yt, na.rm = TRUE)) %>%
+ts_airline_dec <- ts_airline_dec |> 
+  group_by(month) |>
+  mutate(Fj = mean(Yt, na.rm = TRUE)) |>
   ungroup()
 
-ts_airline_dec %>% distinct(month, Fj)
+ts_airline_dec |> distinct(month, Fj)
 ```
 
 ### Adj. seasonal factors st_hat = Fj - F_bar
 ```{r}
-F_bar <- ts_airline_dec %>% 
-  distinct(month, Fj) %>% 
-  summarise(F_bar = mean(Fj)) %>% 
+F_bar <- ts_airline_dec |> 
+  distinct(month, Fj) |> 
+  summarise(F_bar = mean(Fj)) |> 
   pull(F_bar)
 
-ts_airline_dec <- ts_airline_dec %>%
+ts_airline_dec <- ts_airline_dec |>
   mutate(st_hat = Fj - F_bar)
 ```
 
 
 ```{r}
-ts_airline_season <- ts_airline_dec %>% distinct(month, Fj, F_bar, sj_hat = st_hat)
+ts_airline_season <- ts_airline_dec |> distinct(month, Fj, F_bar, sj_hat = st_hat)
 ts_airline_season
 ```
 
@@ -265,14 +266,14 @@ Zt = Xt = st_hat
 Where W't = Wt + (st - st_hat)
 
 ```{r}
-ts_airline_dec <- ts_airline_dec %>%
+ts_airline_dec <- ts_airline_dec |>
   mutate(Zt = Xt - st_hat)
 ```
 
 
 ### Irregular component
 ```{r}
-ts_airline_dec <- ts_airline_dec %>%
+ts_airline_dec <- ts_airline_dec |>
   mutate(Wt = Zt - mt_hat)
 ```
 
@@ -312,13 +313,13 @@ ggplot(ts_airline_dec, aes(x = year_month, y = Wt)) +
 
 ### Classical decomposition
 ```{r}
-classical_components <- ts_airline %>% 
+classical_components <- ts_airline |> 
   model(
     classical = classical_decomposition(
       qrt_passengers,
       type = "additive"
     )
-  ) %>% 
+  ) |> 
   components()
 
 # Plot
@@ -328,11 +329,11 @@ autoplot(classical_components)
 ## Temperature
 
 ```{r}
-ts_temperature3 <- read_sav("data/Book 2/temperature3.sav") %>% 
-  clean_names() %>%
+ts_temperature3 <- read_sav("data/Book 2/temperature3.sav") |> 
+  clean_names() |>
     mutate(
       year_month = yearmonth(
-        sprintf("%d-%02d", year, month))) %>%
+        sprintf("%d-%02d", year, month))) |>
   as_tsibble(index = year_month)
 ```
 
@@ -351,8 +352,8 @@ weights
 sum(weights)
 ```
 ```{r}
-ts_temperature3_dec <- ts_temperature3 %>% 
-  select(year, month, year_month, Xt = temperature) %>%
+ts_temperature3_dec <- ts_temperature3 |> 
+  select(year, month, year_month, Xt = temperature) |>
   mutate(
     mt_hat = slide_dbl(
       .x = Xt,
@@ -360,26 +361,26 @@ ts_temperature3_dec <- ts_temperature3 %>%
       .before = 6,
       .after  = 6,
       .complete = TRUE),
-    Yt = Xt - mt_hat) %>%
-  group_by(month) %>%
-  mutate(Fj = mean(Yt, na.rm = TRUE)) %>%
+    Yt = Xt - mt_hat) |>
+  group_by(month) |>
+  mutate(Fj = mean(Yt, na.rm = TRUE)) |>
   ungroup()
 
-F_bar <- ts_temperature3_dec %>% 
-  distinct(month, Fj) %>% 
-  summarise(F_bar = mean(Fj)) %>% 
+F_bar <- ts_temperature3_dec |> 
+  distinct(month, Fj) |> 
+  summarise(F_bar = mean(Fj)) |> 
   pull(F_bar)
 
-ts_temperature3_dec <- ts_temperature3_dec %>%
+ts_temperature3_dec <- ts_temperature3_dec |>
   mutate(st_hat = Fj - F_bar)
 
-ts_temperature3_dec %>% 
+ts_temperature3_dec |> 
   distinct(month, st_hat) 
 ```
 
 Further smoothing of seasonally adjusted plot using moving average of order 35
 ```{r}
-ts_temperature3_dec <- ts_temperature3_dec %>%
+ts_temperature3_dec <- ts_temperature3_dec |>
   mutate(Zt = Xt - st_hat,
          ma35 = slide_dbl(Zt, mean, .before = 17, .after = 17, .complete = TRUE),
          Wt = Zt - ma35)
@@ -423,14 +424,14 @@ ggplot(ts_temperature3_dec, aes(x = year_month, y = Wt)) +
 ## Chemical process
 
 ```{r}
-ts_chemical <- read_sav("data/Book 2/chemical.sav") %>% 
-  mutate(n = row_number()) %>%
+ts_chemical <- read_sav("data/Book 2/chemical.sav") |> 
+  mutate(n = row_number()) |>
   as_tsibble(index = n)
 ```
 
 ### Fit model
 ```{r}
-fit_chemical <- ts_chemical %>%
+fit_chemical <- ts_chemical |>
   model(ses = ETS(temperature ~ error("A") + trend("N") + season("N")))
 ```
 
@@ -447,7 +448,7 @@ aug_chemical
 
 ### Multiple time plot
 ```{r}
-fit_chemical_long <- augment(fit_chemical) %>%
+fit_chemical_long <- augment(fit_chemical) |>
   pivot_longer(cols = c(temperature, .fitted),
                names_to = "legend")
 
@@ -462,7 +463,7 @@ tidy(fit_chemical)
 
 ### Goodness of fit
 ```{r}
-glance(fit_chemical) %>% mutate(RMSE = sqrt(MSE))
+glance(fit_chemical) |> mutate(RMSE = sqrt(MSE))
 ```
 
 ```{r}
@@ -491,7 +492,7 @@ ggplot(augment(fit_chemical)) +
 
 ### Ljung-Box test
 ```{r}
-augment(fit_chemical) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_chemical) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
@@ -503,17 +504,17 @@ Box.test(e, lag = 18, type = "Ljung-Box")
 ```{r}
 future5 <- tsibble::new_data(ts_chemical, n = 5)
 
-fit_chemical %>% forecast(new_data = future5)
+fit_chemical |> forecast(new_data = future5)
 ```
 
 ```{r}
-fc_chemical <- fit_chemical %>% 
-  forecast() %>% 
+fc_chemical <- fit_chemical |> 
+  forecast() |> 
   slice(1:5)
 
-fc_chemical %>%
-  hilo(level = 95) %>%
-  unpack_hilo(`95%`) %>%
+fc_chemical |>
+  hilo(level = 95) |>
+  unpack_hilo(`95%`) |>
   mutate(lo_95 = quantile(temperature, 0.025), #Alternative approach
          hi_95 = quantile(temperature, 0.975))
 ```
@@ -526,18 +527,18 @@ autoplot(fc_chemical, ts_chemical) +
 ## Precipitation
 
 ```{r}
-ts_precipitation <- read_sav("data/Book 2/Taourirt.sav") %>%
-  mutate(year = 1967:1997) %>%
+ts_precipitation <- read_sav("data/Book 2/Taourirt.sav") |>
+  mutate(year = 1967:1997) |>
   as_tsibble(index = year)
 ```
 
 ```{r}
-fit_precipitation <- ts_precipitation %>%
+fit_precipitation <- ts_precipitation |>
   model(ses = ETS(precipitation ~ error("A") + trend("N") + season("N")))
 ```
 
 ```{r}
-fit_precipitation_long <- augment(fit_precipitation) %>%
+fit_precipitation_long <- augment(fit_precipitation) |>
   pivot_longer(cols = c(precipitation, .fitted),
                names_to = "legend")
 
@@ -555,11 +556,11 @@ glance(fit_precipitation)
 ```
 
 ```{r}
-augment(fit_precipitation) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_precipitation) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
-fc_precipitation <- fit_precipitation %>% forecast(h = 4)
+fc_precipitation <- fit_precipitation |> forecast(h = 4)
 fc_precipitation
 ```
 
@@ -572,19 +573,19 @@ autoplot(fc_precipitation, ts_precipitation) + theme_minimal()
 
 Note: fourth root of passenger numbers
 ```{r}
-ts_airline5 <- read_sav("data/Book 2/airline5.sav") %>% 
-  clean_names() %>%
+ts_airline5 <- read_sav("data/Book 2/airline5.sav") |> 
+  clean_names() |>
   as_tsibble(index = year)
 ```
 
 ```{r}
-fit_airline5 <- ts_airline5 %>%
+fit_airline5 <- ts_airline5 |>
   model(ses = ETS(fpass ~ error("A") + trend("N") + season("N")),
         holt = ETS(fpass ~ error("A") + trend("A") + season("N")))
 ```
 
 ```{r}
-fit_airline5_long <- augment(fit_airline5) %>%
+fit_airline5_long <- augment(fit_airline5) |>
   pivot_longer(cols = c(fpass, .fitted),
                names_to = "legend")
 
@@ -603,7 +604,7 @@ augment(fit_airline5)
 ```
 
 ```{r}
-tidy(fit_airline5) %>% mutate(estimate = round(estimate, 4))
+tidy(fit_airline5) |> mutate(estimate = round(estimate, 4))
 ```
 
 ```{r}
@@ -611,13 +612,13 @@ glance(fit_airline5)
 ```
 
 ```{r}
-augment(fit_airline5) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_airline5) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
-fc_airline5 <- fit_airline5 %>% 
-  forecast(h = 5) %>% 
-  filter(.model == "holt") %>%
+fc_airline5 <- fit_airline5 |> 
+  forecast(h = 5) |> 
+  filter(.model == "holt") |>
   mutate(passengers = .mean^4)
 fc_airline5
 ```
@@ -628,20 +629,20 @@ autoplot(fc_airline5, ts_airline5) + theme_minimal()
 
 ## UK index of production
 ```{r}
-ts_production <- read_sav("data/Book 2/production.sav") %>% 
-  clean_names() %>%
-  mutate(year_quarter = yearquarter(date)) %>%
+ts_production <- read_sav("data/Book 2/production.sav") |> 
+  clean_names() |>
+  mutate(year_quarter = yearquarter(date)) |>
   as_tsibble(index = year_quarter)
 ```
 
 ```{r}
-fit_production <- ts_production %>%
+fit_production <- ts_production |>
   model(ses = ETS(index ~ error("A") + trend("N") + season("N")),
         holt = ETS(index ~ error("A") + trend("A") + season("N")))
 ```
 
 ```{r}
-fit_production_long <- augment(fit_production) %>%
+fit_production_long <- augment(fit_production) |>
   pivot_longer(cols = c(index, .fitted),
                names_to = "legend")
 
@@ -652,7 +653,7 @@ ggplot(fit_production_long) +
 ```
 
 ```{r}
-tidy(fit_production) %>% mutate(estimate = round(estimate, 4))
+tidy(fit_production) |> mutate(estimate = round(estimate, 4))
 ```
 
 ```{r}
@@ -660,12 +661,12 @@ glance(fit_production)
 ```
 
 ```{r}
-augment(fit_production) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_production) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
-fc_production <- fit_production %>% 
-  forecast(h = 5) %>% 
+fc_production <- fit_production |> 
+  forecast(h = 5) |> 
   filter(.model == "holt")
 fc_production
 ```
@@ -678,21 +679,21 @@ autoplot(fc_production, ts_production)
 ## Clostridium difficile
 
 ```{r}
-ts_infections2 <- read_sav("data/Book 2/infections2.sav") %>%
-  clean_names() %>%
-  mutate(year_quarter = yearquarter(date)) %>%
+ts_infections2 <- read_sav("data/Book 2/infections2.sav") |>
+  clean_names() |>
+  mutate(year_quarter = yearquarter(date)) |>
   as_tsibble(index = year_quarter)
 ```
 
 ```{r}
-fit_infections2 <- ts_infections2 %>%
+fit_infections2 <- ts_infections2 |>
   model(ses = ETS(clostridium ~ error("A") + trend("N") + season("N")),
         holt = ETS(clostridium ~ error("A") + trend("A") + season("N")),
         holt_wint = ETS(clostridium ~ error("A") + trend("A") + season("A")))
 ```
 
 ```{r}
-fit_infections2_long <- augment(fit_infections2) %>%
+fit_infections2_long <- augment(fit_infections2) |>
   pivot_longer(cols = c(clostridium, .fitted),
                names_to = "legend")
 
@@ -712,7 +713,7 @@ augment(fit_infections2)
 
 
 ```{r}
-tidy(fit_infections2) %>% mutate(estimate = round(estimate, 4))
+tidy(fit_infections2) |> mutate(estimate = round(estimate, 4))
 ```
 
 ```{r}
@@ -720,12 +721,12 @@ glance(fit_infections2)
 ```
 
 ```{r}
-augment(fit_infections2) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_infections2) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
-fc_infections2 <- fit_infections2 %>% 
-  forecast(h = 5) %>% 
+fc_infections2 <- fit_infections2 |> 
+  forecast(h = 5) |> 
   filter(.model == "holt_wint")
 fc_infections2
 ```
@@ -745,10 +746,10 @@ autoplot(ts_infections2, clostridium) +
 ## Electricity
 
 ```{r}
-ts_electricity <- read_sav("data/Book 2/electricity.sav") %>%
-  clean_names() %>%
+ts_electricity <- read_sav("data/Book 2/electricity.sav") |>
+  clean_names() |>
   mutate(year_month = yearmonth(sprintf("%d-%02d", year, month)),
-         logdemand = log(demand)) %>%
+         logdemand = log(demand)) |>
   as_tsibble(index = year_month)
 ```
 
@@ -763,14 +764,14 @@ ggplot(ts_electricity, aes(x = year_month, y = logdemand)) +
 ```
 
 ```{r}
-fit_electricity <- ts_electricity %>%
+fit_electricity <- ts_electricity |>
   model(ses = ETS(logdemand ~ error("A") + trend("N") + season("N")),
         holt = ETS(logdemand ~ error("A") + trend("A") + season("N")),
         holt_wint = ETS(logdemand ~ error("A") + trend("A") + season("A")))
 ```
 
 ```{r}
-fit_electricity_long <- augment(fit_electricity) %>%
+fit_electricity_long <- augment(fit_electricity) |>
   pivot_longer(cols = c(logdemand, .fitted),
                names_to = "legend")
 
@@ -781,20 +782,20 @@ ggplot(fit_electricity_long) +
 ```
 
 ```{r}
-tidy(fit_electricity) %>% mutate(estimate = round(estimate, 4))
+tidy(fit_electricity) |> mutate(estimate = round(estimate, 4))
 ```
 
 ```{r}
-glance(fit_electricity) %>% mutate(RMSE = sqrt(MSE))
+glance(fit_electricity) |> mutate(RMSE = sqrt(MSE))
 ```
 
 ```{r}
-augment(fit_electricity) %>% features(.innov, ljung_box, lag = 18)
+augment(fit_electricity) |> features(.innov, ljung_box, lag = 18)
 ```
 
 ```{r}
-fc_electricity <- fit_electricity %>% 
-  forecast(h = 12) %>% 
+fc_electricity <- fit_electricity |> 
+  forecast(h = 12) |> 
   filter(.model == "holt_wint")
 fc_electricity
 ```
@@ -808,46 +809,46 @@ autoplot(fc_electricity, ts_electricity) + theme_minimal()
 
 ## Airline passengers
 ```{r}
-ts_airline6 <- read_sav("data/Book 2/airline6.sav") %>% 
-  clean_names() %>%
+ts_airline6 <- read_sav("data/Book 2/airline6.sav") |> 
+  clean_names() |>
   as_tsibble(index = year)
 ```
 
 ### ACF
 ```{r}
-acf_airline6 <- ts_airline6 %>% ACF(error, lag_max = 20)
+acf_airline6 <- ts_airline6 |> ACF(error, lag_max = 20)
 acf_airline6
 ```
 
 ```{r}
-acf_airline6 %>% autoplot() + theme_minimal()
+acf_airline6 |> autoplot() + theme_minimal()
 ```
 
 ### Ljung-Box test
 ```{r}
-ts_airline6 %>% features(error, ljung_box, lag = 20)
+ts_airline6 |> features(error, ljung_box, lag = 20)
 ```
 
 
 ## Chemical process
 ```{r}
-ts_chemical2 <- read_sav("data/Book 2/chemical2.sav") %>% 
-  mutate(n = row_number()) %>%
+ts_chemical2 <- read_sav("data/Book 2/chemical2.sav") |> 
+  mutate(n = row_number()) |>
   as_tsibble(index = n)
 ```
 
 
 ```{r}
-acf_chemical2 <- ts_chemical2 %>% ACF(error, lag_max = 20)
+acf_chemical2 <- ts_chemical2 |> ACF(error, lag_max = 20)
 acf_chemical2
 ```
 
 ```{r}
-acf_chemical2 %>% autoplot() + theme_minimal()
+acf_chemical2 |> autoplot() + theme_minimal()
 ```
 
 ```{r}
-ts_chemical2 %>% features(error, ljung_box, lag = 20)
+ts_chemical2 |> features(error, ljung_box, lag = 20)
 ```
 
 ```{r}
@@ -859,9 +860,9 @@ ggplot(ts_chemical2, aes(x = error)) +
 ## Vessel arrivals
 
 ```{r}
-ts_tonnage <- read_sav("data/Book 2/tonnage.sav") %>%
-  clean_names() %>%
-  mutate(year_month = yearmonth(sprintf("%d-%02d", year, month))) %>%
+ts_tonnage <- read_sav("data/Book 2/tonnage.sav") |>
+  clean_names() |>
+  mutate(year_month = yearmonth(sprintf("%d-%02d", year, month))) |>
   as_tsibble(index = year_month)
 ```
 
@@ -872,12 +873,12 @@ ggplot(ts_tonnage, aes(x = year_month, y = tonnage)) +
 ```
 
 ```{r}
-fit_tonnage <- ts_tonnage %>%
+fit_tonnage <- ts_tonnage |>
   model(holt_wint = ETS(tonnage ~ error("A") + trend("A") + season("A")))
 ```
 
 ```{r}
-fit_tonnage_long <- augment(fit_tonnage) %>%
+fit_tonnage_long <- augment(fit_tonnage) |>
   pivot_longer(cols = c(tonnage, .fitted),
                names_to = "legend")
 
@@ -888,26 +889,26 @@ ggplot(fit_tonnage_long) +
 ```
 
 ```{r}
-tidy(fit_tonnage) %>% mutate(estimate = round(estimate, 4))
+tidy(fit_tonnage) |> mutate(estimate = round(estimate, 4))
 ```
 
 ```{r}
-glance(fit_tonnage) %>% mutate(RMSE = sqrt(MSE))
+glance(fit_tonnage) |> mutate(RMSE = sqrt(MSE))
 ```
 
 ```{r}
-augment(fit_tonnage) %>% features(.innov, ljung_box, lag = 18) %>%
+augment(fit_tonnage) |> features(.innov, ljung_box, lag = 18) |>
   mutate(across(where(is.numeric), round, 3))
 ```
 
 ```{r}
-acf_tonnage <- augment(fit_tonnage) %>% 
+acf_tonnage <- augment(fit_tonnage) |> 
   ACF(.innov, lag_max = 20)
 acf_tonnage
 ```
 
 ```{r}
-acf_tonnage %>% autoplot() + theme_minimal()
+acf_tonnage |> autoplot() + theme_minimal()
 ```
 
 ```{r}
@@ -921,7 +922,7 @@ ggplot(augment(fit_tonnage), aes(x = .innov)) + geom_histogram(binwidth = 250) +
 ```
 
 ```{r}
-fc_tonnage <- fit_tonnage %>% 
+fc_tonnage <- fit_tonnage |> 
   forecast(h = 12)
 fc_tonnage
 ```
@@ -941,7 +942,7 @@ components(fit_tonnage)
 
 ### Differencing
 ```{r}
-ts_production_diff <- ts_production %>% mutate(
+ts_production_diff <- ts_production |> mutate(
   d1_index = difference(index),
   d2_index = difference(d1_index))
 ```
@@ -962,11 +963,11 @@ ggplot(ts_production_diff, aes(x = year_quarter, y = d2_index)) +
 ## FTSE100
 
 ```{r}
-ts_ftse <- read_sav("data/Book 2/ftse100.sav") %>% 
-  clean_names() %>%
+ts_ftse <- read_sav("data/Book 2/ftse100.sav") |> 
+  clean_names() |>
   mutate(year_month = yearmonth(sprintf("%d-%02d", year, month))
-  ) %>%
-  as_tsibble(index = year_month) %>%
+  ) |>
+  as_tsibble(index = year_month) |>
   mutate(
     d1_ftse = difference(ftse),
     d1_logftse = difference(logftse)
@@ -994,7 +995,7 @@ ggplot(ts_ftse, aes(x = year_month, y = d1_logftse)) +
 ## Airline passengers
 
 ```{r}
-ts_airline5_diff <- ts_airline5 %>%
+ts_airline5_diff <- ts_airline5 |>
   mutate(d1_passengers = difference(passengers),
          log_passengers = log(passengers),
          d1_log_passengers = difference(log_passengers),
@@ -1027,7 +1028,7 @@ ggplot(ts_airline5_diff, aes(x = year, y = d2_log_passengers)) +
 ## Electricity
 
 ```{r}
-ts_electricity_diff = ts_electricity %>%
+ts_electricity_diff = ts_electricity |>
   mutate(log_sademand = log(sademand),
          d1_log_sademand = difference(log_sademand))
 ```
@@ -1051,16 +1052,345 @@ ggplot(ts_electricity_diff, aes(x = year_month, y = d1_log_sademand)) +
 ## FTSE100
 ### ACF
 ```{r}
-ts_ftse %>% ACF(d1_logftse, lag_max = 20) %>% autoplot() + theme_minimal()
+ts_ftse |> ACF(d1_logftse, lag_max = 20) |> autoplot() + theme_minimal()
 ```
 
 ```{r}
-ts_ftse %>% features(d1_logftse, ljung_box, lag = 20)
+ts_ftse |> features(d1_logftse, ljung_box, lag = 20)
 ```
 
 ### PACF
 ```{r}
-ts_ftse %>% PACF(d1_logftse, lag_max = 20) %>% autoplot() + theme_minimal()
+ts_ftse |> PACF(d1_logftse, lag_max = 20) |> autoplot() + theme_minimal()
 ```
 
 The stationary series is uncorrelated so a suitable model for log ftse is ARIMA(0,1,0)
+
+## UK index of production
+
+```{r}
+ACF(ts_production_diff, d2_index) |> autoplot() + theme_minimal()
+ACF(ts_production_diff, d2_index) |> autoplot() + theme_minimal()
+```
+```{r}
+fit_production <- ts_production  |>
+  model(ses = ETS(index ~ error("A") + trend("N") + season("N")),
+        holt = ETS(index ~ error("A") + trend("A") + season("N")),
+        arima021 = ARIMA(index ~ pdq(0, 2, 1)),
+        arima120 = ARIMA(index ~ pdq(1, 2, 0)))
+```
+
+```{r}
+fit_production_long <- augment(fit_production) |>
+  pivot_longer(cols = c(index, .fitted),
+               names_to = "legend")
+
+ggplot(fit_production_long) + 
+  geom_line(aes(x = year_quarter, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+
+```{r}
+tidy(fit_production)
+```
+
+```{r}
+glance(fit_production)
+```
+
+```{r}
+augment(fit_production) |> features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+ggplot(augment(fit_production) |> filter(.model == "arima021"), aes(x = year_quarter, y = .innov)) + geom_line() + theme_minimal()
+
+ggplot(augment(fit_production) |> filter(.model == "arima021"), aes(x = .innov)) + geom_histogram() + theme_minimal()
+
+augment(fit_production) |> filter(.model == "arima021") |> ACF(.innov, lag_max = 20) |> autoplot() + theme_minimal()
+```
+
+### gg_tsdisplay()
+```{r}
+augment(fit_production) |>
+  filter(.model == "arima021") |>
+  gg_tsdisplay(.innov)
+```
+```{r}
+augment(fit_production) |>
+  filter(.model == "arima120") |>
+  gg_tsdisplay(.innov)
+```
+
+
+
+```{r}
+fc_production <- fit_production |> 
+  forecast(h = 20) |> 
+  filter(.model == "arima021")
+fc_production
+```
+
+```{r}
+autoplot(fc_production, ts_production) + theme_minimal()
+```
+
+## Electricity
+```{r}
+fit_electricity <- ts_electricity |>
+  model(holt = ETS(log(sademand) ~ error("A") + trend("A") + season("N")),
+        arima111 = ARIMA(log(sademand) ~ pdq(1,1,1)))
+```
+
+```{r}
+fit_electricity_long <- augment(fit_electricity) |>
+  pivot_longer(cols = c(sademand, .fitted),
+               names_to = "legend")
+
+ggplot(fit_electricity_long) + 
+  geom_line(aes(x = year_month, y = value, col = legend)) +
+  facet_grid(vars(.model)) +
+  theme_minimal()
+```
+```{r}
+ggplot(augment(fit_electricity) |> filter(.model == "arima111"), aes(x = year_month, y = .innov)) + geom_line() + theme_minimal()
+
+ggplot(augment(fit_electricity) |> filter(.model == "arima111"), aes(x = .innov)) + geom_histogram() + theme_minimal()
+
+augment(fit_electricity) |> filter(.model == "arima111") |> ACF(.innov, lag_max = 20) |> autoplot() + theme_minimal()
+```
+```{r}
+augment(fit_electricity) |> features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+glance(fit_electricity) |> mutate(RMSE = sqrt(MSE))
+```
+
+
+
+```{r}
+fc_electricity <- fit_electricity |> 
+  forecast(h = 12) |> 
+  filter(.model == "holt_wint")
+fc_electricity
+```
+
+```{r}
+autoplot(fc_electricity, ts_electricity) + theme_minimal()
+```
+
+## Airline passengers
+```{r}
+ACF(ts_airline5_diff, d2_log_passengers) |> autoplot() + theme_minimal()
+PACF(ts_airline5_diff, d2_log_passengers) |> autoplot() + theme_minimal()
+```
+
+```{r}
+fit_airline5 <- ts_airline5 |>
+  model(arima021 = ARIMA(log(passengers) ~ pdq(0,2,1)))
+```
+
+```{r}
+fit_airline5_long <- augment(fit_airline5) |>
+  pivot_longer(cols = c(passengers, .fitted),
+               names_to = "legend")
+
+ggplot(fit_airline5_long) + 
+  geom_line(aes(x = year, y = value, col = legend)) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(augment(fit_airline5), aes(x = year, y = .innov)) + geom_line() + theme_minimal()
+
+ggplot(augment(fit_airline5), aes(x = .innov)) + geom_histogram() + theme_minimal()
+
+augment(fit_airline5) |> ACF(.innov, lag_max = 20) |> autoplot() + theme_minimal()
+```
+```{r}
+augment(fit_airline5) |> features(.innov, ljung_box, lag = 18)
+```
+
+```{r}
+tidy(fit_airline5)
+```
+
+```{r}
+glance(fit_airline5)
+```
+
+```{r}
+fc_airline5 <- fit_airline5 |> 
+  forecast(h = 11)
+fc_airline5
+```
+
+```{r}
+autoplot(fc_airline5, ts_airline5) + theme_minimal()
+```
+
+
+# Random walk
+```{r}
+n = 100
+random_walk <- tibble(t = 1:n, 
+                      eps = rnorm(n), 
+                      y = cumsum(eps)) %>%
+  as_tsibble(index = t) %>%
+  mutate(d1 = difference(y))
+
+ggplot(random_walk, aes(x = t, y = y)) + geom_line() + theme_minimal()
+ggplot(random_walk, aes(x = t, y = d1)) + geom_line() + theme_minimal()
+```
+
+# Simulations
+## Autoregressive
+### AR(1)
+```{r}
+n <- 200
+phi <- 0.8
+y <- arima.sim(model = list(order = c(1, 0, 0), ar = phi), n = n)
+plot.ts(y)
+acf(y)
+pacf(y)
+```
+### AR(2)
+```{r}
+n <- 200
+phi1 <- 0.6
+phi2 <- -0.5
+y <- arima.sim(model = list(order = c(2, 0, 0), ar = c(phi1, phi2)), n = n)
+plot.ts(y)
+acf(y)
+pacf(y)
+```
+### ARIMA(1,1,0)
+```{r}
+n <- 200
+phi <- 0.8
+y <- arima.sim(model = list(order = c(1, 1, 0), ar = phi), n = n)
+plot.ts(y)
+acf(diff(y))
+pacf(diff(y))
+```
+
+### ARIMA(2,1,0)
+```{r}
+n <- 200
+phi1 <- 0.6
+phi2 <- -0.3
+y <- arima.sim(model = list(order = c(2, 1, 0), ar = c(phi1, phi2)), n = n)
+plot.ts(y)
+acf(diff(y))
+pacf(diff(y))
+```
+### ARIMA(1,2,0)
+```{r}
+n <- 200
+phi <- 0.6
+y <- arima.sim(model = list(order = c(1, 2, 0), ar = phi), n = n)
+plot.ts(y)
+acf(diff(y, differences = 2))
+pacf(diff(y, differences = 2))
+```
+
+### ARIMA(2,2,0)
+```{r}
+n <- 200
+phi1 <- 0.6
+phi2 <- -0.3
+y <- arima.sim(model = list(order = c(2, 2, 0), ar = c(phi1, phi2)), n = n)
+plot.ts(y)
+acf(diff(y, differences = 2))
+pacf(diff(y, differences = 2))
+```
+
+## Moving average
+### MA(1)
+```{r}
+n <- 200
+theta <- 0.5
+y <- arima.sim(model = list(order = c(0, 0, 1), ma = theta), n = n)
+plot.ts(y)
+acf(y)
+pacf(y)
+```
+
+### MA(2)
+```{r}
+n <- 200
+theta1 <- 0.7
+theta2 <- -0.4
+y <- arima.sim(model = list(order = c(0, 0, 2), ma = c(theta1, theta2)), n = n)
+plot.ts(y)
+acf(y)
+pacf(y)
+```
+### ARIMA(0,1,1)
+```{r}
+n <- 200
+theta <- 0.5
+y <- arima.sim(model = list(order = c(0, 1, 1), ma = theta), n = n)
+plot.ts(y)
+acf(diff(y))
+pacf(diff(y))
+```
+
+### ARIMA(0,1,2)
+```{r}
+n <- 200
+theta1 <- 0.7
+theta2 <- -0.4
+y <- arima.sim(model = list(order = c(0, 1, 2), ma = c(theta1, theta2)), n = n)
+plot.ts(y)
+acf(diff(y))
+pacf(diff(y))
+```
+
+
+### ARIMA(0,2,1)
+```{r}
+n <- 200
+theta <- 0.5
+y <- arima.sim(model = list(order = c(0, 2, 1), ma = theta), n = n)
+plot.ts(y)
+acf(diff(y, differences = 2))
+pacf(diff(y, differences = 2))
+```
+
+### ARIMA(0,2,2)
+```{r}
+n <- 200
+theta1 <- 0.7
+theta2 <- -0.4
+y <- arima.sim(model = list(order = c(0, 2, 2), ma = c(theta1, theta2)), n = n)
+plot.ts(y)
+acf(diff(y, differences = 2))
+pacf(diff(y, differences = 2))
+```
+
+
+## Mixed
+
+### ARIMA(1,1,1)
+```{r}
+n <- 200
+phi <- 0.8
+theta <- 0.4
+y <- arima.sim(model = list(order = c(1, 1, 1), ar = phi, ma = theta), n = n)
+plot.ts(y)
+acf(diff(y))
+pacf(diff(y))
+```
+### ARIMA(1,2,1)
+```{r}
+n <- 200
+phi <- 0.8
+theta <- 0.4
+y <- arima.sim(model = list(order = c(1, 2, 1), ar = phi, ma = theta), n = n)
+plot.ts(y)
+acf(diff(y, differences = 2))
+pacf(diff(y, differences = 2))
+```
