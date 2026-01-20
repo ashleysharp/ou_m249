@@ -3,3 +3,112 @@ title: "Multivariate analysis"
 output: html_document
 date: "2025-07-05"
 ---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(MASS)
+```
+
+# Within- and between- group variance
+```{r}
+iris %>% mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) %>%
+  summarise(mean = mean(Petal.Length),
+            tss = sum(sq_res),
+            s2 = tss/(n()-1))
+```
+
+```{r}
+iris_groups <- iris %>% group_by(Species) %>%
+  mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) %>%
+  summarise(mean_g = mean(Petal.Length),
+            ss_g = sum(sq_res), 
+            s2_g = ss_g/(n()-1),
+            n = n(),
+            .groups = "drop")
+iris_groups
+```
+
+```{r}
+iris_w <- iris_groups %>%
+  summarise(ssw = sum(ss_g), #ssw = sum((n-1)*s2_g),
+            df = sum(n) - n(), #N - G
+            msw = ssw/df) #Pooled within-group sample variance
+iris_w
+```
+
+```{r}
+grand_mean <- mean(iris$Petal.Length)
+iris_b <- iris_groups %>% mutate(sq_res = n*(mean_g - grand_mean)^2) %>%
+  summarise(ssb = sum(sq_res),
+            df = n()-1,
+            msb = ssb/df)
+iris_b
+```
+
+```{r}
+str_c("msb = ", round(iris_b$msb, 2), 
+      ", msw = ", round(iris_w$msw, 2), 
+      ", msb/msw = ", round(iris_b$msb/iris_w$msw, 2),
+      ", ss_t = ", round(iris_b$ssb + iris_w$ssw, 2))
+```
+
+```{r}
+fit <- aov(Petal.Length ~ Species, data = iris)
+summary(fit)
+```
+
+# Within- and between-group covariance
+```{r}
+ggplot(iris, aes(x = Petal.Length, y = Sepal.Length, col = Species)) + 
+  geom_point() + 
+  theme_minimal()
+```
+
+
+```{r}
+iris %>% mutate(cp = (Petal.Length - mean(Petal.Length)) * (Sepal.Length - mean(Sepal.Length))) %>%
+  summarise(scp = sum(cp), # Sum of cross products
+            cov = scp/(n()-1),
+            cor = cov/(sd(Petal.Length)*sd(Sepal.Length)))
+```
+```{r}
+cov(iris$Petal.Length, iris$Sepal.Length)
+cor(iris$Petal.Length, iris$Sepal.Length)
+```
+
+```{r}
+iris %>%
+  group_by(Species) %>%
+  summarise(
+    cov_g = cov(Petal.Length, Sepal.Length),
+    cor_g = cor(Petal.Length, Sepal.Length),
+    n = n(),
+    .groups = "drop"
+  )
+```
+
+
+
+```{r}
+set.seed(123)
+n <- 300
+
+Sigma <- matrix(
+  c(1.0,  0.6,  0.3,
+    0.6,  1.0,  0.5,
+    0.3,  0.5,  1.0),
+  nrow = 3
+)
+
+dat <- mvrnorm(
+  n = n,
+  mu = c(0, 0, 0),
+  Sigma = Sigma
+)
+
+dat <- as.data.frame(dat)
+names(dat) <- c("x1", "x2", "x3")
+
+cor(dat)
+```
