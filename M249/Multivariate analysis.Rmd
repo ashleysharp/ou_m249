@@ -8,6 +8,9 @@ date: "2025-07-05"
 library(tidyverse)
 library(janitor)
 library(MASS)
+library(GGally)
+
+data(iris)
 ```
 
 # Within- and between- group variance
@@ -24,22 +27,22 @@ iris_groups <- iris %>% group_by(Species) %>%
   summarise(mean_g = mean(Petal.Length),
             ss_g = sum(sq_res), 
             s2_g = ss_g/(n()-1),
-            n = n(),
+            n_g = n(),
             .groups = "drop")
 iris_groups
 ```
 
 ```{r}
 iris_w <- iris_groups %>%
-  summarise(ssw = sum(ss_g), #ssw = sum((n-1)*s2_g),
-            df = sum(n) - n(), #N - G
+  summarise(ssw = sum(ss_g), #ssw = sum((n_g-1)*s2_g),
+            df = sum(n_g) - n(), #N - G
             msw = ssw/df) #Pooled within-group sample variance
 iris_w
 ```
 
 ```{r}
 grand_mean <- mean(iris$Petal.Length)
-iris_b <- iris_groups %>% mutate(sq_res = n*(mean_g - grand_mean)^2) %>%
+iris_b <- iris_groups %>% mutate(sq_res = n_g*(mean_g - grand_mean)^2) %>%
   summarise(ssb = sum(sq_res),
             df = n()-1,
             msb = ssb/df)
@@ -47,46 +50,113 @@ iris_b
 ```
 
 ```{r}
-str_c("msb = ", round(iris_b$msb, 2), 
-      ", msw = ", round(iris_w$msw, 2), 
+str_c("ssb = ", round(iris_b$ssb, 2),
+      ", msb = ", round(iris_b$msb, 2), 
+      ", ssw = ", round(iris_w$ssw, 2),
+      ", msw = ", round(iris_w$msw, 2),
       ", msb/msw = ", round(iris_b$msb/iris_w$msw, 2),
       ", ss_t = ", round(iris_b$ssb + iris_w$ssw, 2))
 ```
 
 ```{r}
-fit <- aov(Petal.Length ~ Species, data = iris)
-summary(fit)
+summary(aov(Petal.Length ~ Species, data = iris))
+summary(aov(Petal.Width ~ Species, data = iris))
+summary(aov(Sepal.Length ~ Species, data = iris))
+summary(aov(Sepal.Width ~ Species, data = iris))
 ```
 
 # Within- and between-group covariance
-```{r}
-ggplot(iris, aes(x = Petal.Length, y = Sepal.Length, col = Species)) + 
-  geom_point() + 
-  theme_minimal()
+
+```{r message=FALSE}
+ggpairs(
+  iris,
+  columns = 1:4,
+  aes(color = Species, alpha = 0.7)
+) + theme_minimal()
 ```
 
 
 ```{r}
-iris %>% mutate(cp = (Petal.Length - mean(Petal.Length)) * (Sepal.Length - mean(Sepal.Length))) %>%
+iris %>% mutate(cp = (Sepal.Length - mean(Sepal.Length)) * (Petal.Width - mean(Petal.Width))) %>%
   summarise(scp = sum(cp), # Sum of cross products
             cov = scp/(n()-1),
-            cor = cov/(sd(Petal.Length)*sd(Sepal.Length)))
+            cor = cov/(sd(Sepal.Length)*sd(Petal.Width)))
 ```
+
+
 ```{r}
-cov(iris$Petal.Length, iris$Sepal.Length)
-cor(iris$Petal.Length, iris$Sepal.Length)
+iris_centred <- scale(iris[, 1:4], center = TRUE, scale = FALSE)
+t(iris_centred) %*% iris_centred / (nrow(iris) - 1)
+#crossprod(iris_centred) / (nrow(iris) - 1)
+# cov(iris[, 1:4])
 ```
 
 ```{r}
-iris %>%
-  group_by(Species) %>%
-  summarise(
-    cov_g = cov(Petal.Length, Sepal.Length),
-    cor_g = cor(Petal.Length, Sepal.Length),
-    n = n(),
-    .groups = "drop"
-  )
+iris_standardised <- scale(iris[, 1:4], center = TRUE, scale = TRUE)
+t(iris_standardised) %*% iris_standardised / (nrow(iris) - 1) 
+# crossprod(iris_standardised) / (nrow(iris) - 1) 
+# cor(iris[, 1:4])
 ```
+
+
+```{r}
+X <- as.matrix(iris[, 1:4])   # numeric variables
+g <- iris$Species              # grouping factor
+
+p <- ncol(X)
+n <- nrow(X)
+groups <- levels(g)
+G <- length(groups)
+```
+
+```{r}
+SW <- matrix(0, p, p)
+
+for (grp in groups) {
+  Xg <- X[g == grp, ]
+  Xg_centered <- scale(Xg, center = TRUE, scale = FALSE)
+  SW <- SW + t(Xg_centered) %*% Xg_centered
+}
+```
+
+```{r}
+SW_cov <- SW / (n - G)
+SW_cov
+```
+
+```{r}
+grand_mean <- colMeans(X)
+SB <- matrix(0, p, p)
+
+for (grp in groups) {
+  Xg <- X[g == grp, ]
+  ng <- nrow(Xg)
+  mean_g <- colMeans(Xg)
+  
+  diff <- matrix(mean_g - grand_mean, ncol = 1)
+  SB <- SB + ng * (diff %*% t(diff))
+}
+```
+
+```{r}
+SB_cov <- SB / (G - 1)
+SB_cov
+```
+
+```{r}
+Xc <- scale(X, center = TRUE, scale = FALSE)
+ST <- t(Xc) %*% Xc
+
+all.equal(ST, SW + SB)
+```
+
+
+
+
+
+
+
+
 
 
 
