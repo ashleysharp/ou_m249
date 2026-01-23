@@ -127,6 +127,26 @@ ggpairs(
 ) + theme_minimal()
 ```
 
+Profile plot
+```{r}
+iris_long <- iris %>%
+  mutate(id = row_number()) %>%        # unique ID per observation
+  pivot_longer(
+    cols = Sepal.Length:Petal.Width,
+    names_to = "variable",
+    values_to = "value"
+  )
+
+ggplot(iris_long,
+       aes(x = variable, y = value, colour = Species, group = id)) +
+  geom_line(alpha = 0.25, linewidth =  0.6) +
+  theme_minimal() +
+  labs(
+    x = NULL,
+    y = "Measurement",
+    title = "Iris Profile Plot"
+  )
+```
 
 ```{r}
 iris %>% mutate(cp = (Sepal.Length - mean(Sepal.Length)) * (Petal.Width - mean(Petal.Width))) %>%
