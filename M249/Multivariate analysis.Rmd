@@ -13,6 +13,58 @@ library(GGally)
 data(iris)
 ```
 
+# PCA
+
+```{r}
+X <- as.matrix(iris[, 1:4])
+
+# --- choose: covariance PCA (center only) or correlation PCA (center + scale)
+# Xc <- scale(X, center = TRUE, scale = FALSE)  # covariance version
+Z  <- scale(X, center = TRUE, scale = TRUE) # correlation version
+
+# S <- cov(Xc)               # same as t(Xc) %*% Xc / (nrow(Xc) - 1)
+S <- cov(Z)
+
+eig <- eigen(S)
+
+values  <- eig$values      # eigenvalues (variances of PCs)
+vectors <- eig$vectors     # eigenvectors (loadings)
+
+# PC scores
+scores <- Z %*% vectors
+
+# proportion variance explained
+pve <- values / sum(values)
+
+values
+pve
+head(scores)
+
+pc1 <- Z %*% vectors[,1]
+pc2 <- Z %*% vectors[,1:2]
+```
+
+```{r}
+X <- iris[, 1:4]
+
+p <- prcomp(X, center = TRUE, scale. = TRUE)  # correlation PCA
+summary(p)
+
+# loadings (eigenvectors)
+p$rotation
+
+# scores
+head(p$x)
+
+# eigenvalues of correlation PCA:
+(p$sdev^2)
+
+# proportion variance explained
+(p$sdev^2) / sum(p$sdev^2)
+```
+
+
+
 # Within- and between- group variance
 ```{r}
 iris %>% mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) %>%
@@ -151,7 +203,47 @@ all.equal(ST, SW + SB)
 ```
 
 
+```{r}
+# Fit LDA
+fit <- lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+           data = iris)
 
+fit
+# Class priors, group means, and linear discriminants (scaling)
+
+# Predict
+pred <- predict(fit, newdata = iris)
+names(pred)
+# "class" "posterior" "x"  (x = LD scores)
+
+# Confusion matrix (training set)
+table(Truth = iris$Species, Pred = pred$class)
+
+# Accuracy
+mean(pred$class == iris$Species)
+
+# LD scores
+head(pred$x)   # columns LD1, LD2 (since 3 classes -> at most 2 LDs)
+```
+
+```{r}
+library(ggplot2)
+
+lda_df <- data.frame(
+  LD1 = pred$x[, 1],
+  LD2 = pred$x[, 2],
+  Species = iris$Species
+)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, colour = Species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  labs(
+    x = "LD1",
+    y = "LD2",
+    colour = "Species"
+  ) +
+  theme_minimal()
+```
 
 
 
