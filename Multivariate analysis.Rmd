@@ -7,13 +7,51 @@ date: "2025-07-05"
 ```{r}
 library(tidyverse)
 library(janitor)
+library(haven)
 library(MASS)
 library(GGally)
 
 data(iris)
 ```
+# Data visualisation
+## Scatterplots
+```{r}
+housing <- read_sav("data/Book 3/housing.sav")
+```
 
-# PCA
+```{r}
+crimeloss1 <- read_sav("data/Book 3/crimeloss1.sav")
+```
+
+
+## Matrix scatterplots
+```{r}
+lea <- read_sav("data/Book 3/lea.sav")
+```
+
+```{r}
+crimeloss2 <- read_sav("data/Book 3/crimeloss2.sav")
+```
+
+
+## Profile plots
+```{r}
+echinacea <- read_sav("data/Book 3/echinacea.sav")
+```
+
+```{r}
+hams <- read_sav("data/Book 3/hams.sav")
+```
+
+# Numerical summaries and standardisation
+
+```{r}
+mathsability <- read_sav("data/Book 3/mathsability.sav")
+```
+
+# Principle Component analysis
+
+## Iris
 
 ```{r}
 X <- as.matrix(iris[, 1:4])
@@ -63,9 +101,21 @@ head(p$x)
 (p$sdev^2) / sum(p$sdev^2)
 ```
 
+## Maths ability
 
+## Wells
+```{r}
+wells <- read_sav("data/Book 3/wells.sav")
+```
 
-# Within- and between- group variance
+# Extracting and plotting principle components
+```{r}
+mathsability2 <- read_sav("data/Book 3/mathsability2.sav")
+```
+
+# Canonical discriminant analysis
+## Iris
+### Within- and between- group variance
 ```{r}
 iris %>% mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) %>%
   summarise(mean = mean(Petal.Length),
@@ -117,7 +167,7 @@ summary(aov(Sepal.Length ~ Species, data = iris))
 summary(aov(Sepal.Width ~ Species, data = iris))
 ```
 
-# Within- and between-group covariance
+### Within- and between-group covariance
 
 ```{r message=FALSE}
 ggpairs(
@@ -266,10 +316,27 @@ ggplot(lda_df, aes(x = LD1, y = LD2, colour = Species)) +
 ```
 
 
+## Banknotes
+```{r}
+banknotes <- read_sav("data/Book 3/banknotes.sav")
+```
 
 
+## Satelites
+```{r}
+satellite <- read_sav("data/Book 3/satellite.sav")
+```
 
 
+# Allocation
+
+```{r}
+banknotes2 <- read_sav("data/Book 3/banknotes2.sav")
+```
+
+```{r}
+testsat <- read_sav("data/Book 3/testsat.sav")
+```
 
 
 ```{r}
