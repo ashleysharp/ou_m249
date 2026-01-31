@@ -3,3 +3,9 @@ title: "Bayesian statistics"
 output: html_document
 date: "2025-07-05"
 ---
+
+```{r}
+library(runjags)
+library(coda)
+```
+
