@@ -13,34 +13,184 @@ library(GGally)
 
 data(iris)
 ```
+
 # Data visualisation
 ## Scatterplots
+
+### Housing
 ```{r}
 housing <- read_sav("data/Book 3/housing.sav")
 ```
 
 ```{r}
+ggplot(
+  housing,
+  aes(
+    income,
+    houseprice,
+    fill  = factor(region),
+    shape = factor(region)
+  )
+) +
+  geom_point(
+    size   = 2,
+    colour = "black",
+    alpha  = 0.5
+  ) +
+  scale_shape_manual(values = rep(c(21, 22, 23), 3)) +
+  theme_minimal()
+```
+
+### Crime
+```{r}
 crimeloss1 <- read_sav("data/Book 3/crimeloss1.sav")
 ```
 
+```{r}
+ggplot(
+  crimeloss1,
+  aes(
+    totexp,
+    totloss,
+    shape = region
+  )
+) +
+  geom_point(
+    size   = 2,
+    colour = "black",
+    alpha  = 0.7
+  ) +
+  theme_minimal()
+```
 
 ## Matrix scatterplots
+
+### Iris
+```{r message=FALSE}
+ggpairs(
+  iris,
+  columns = 1:4,
+  aes(color = Species, alpha = 0.7)
+) + 
+  theme_minimal()
+```
+
+### Local education authorities
 ```{r}
 lea <- read_sav("data/Book 3/lea.sav")
+```
+
+```{r}
+ggpairs(
+  lea,
+  columns = 2:4,
+) + 
+  theme_minimal()
 ```
 
 ```{r}
 crimeloss2 <- read_sav("data/Book 3/crimeloss2.sav")
 ```
 
+```{r message=FALSE}
+ggpairs(
+  crimeloss2,
+  columns = 2:5,
+) + 
+  theme_minimal()
+```
+
 
 ## Profile plots
+
+### Iris
+```{r}
+iris_long <- iris %>%
+  mutate(id = row_number()) %>%
+  pivot_longer(
+    cols = Sepal.Length:Petal.Width,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  group_by(variable) %>%
+  mutate(variable_mean = mean(value)) %>%
+  ungroup() %>%
+  mutate(
+    variable = reorder(variable, -variable_mean)
+  )
+
+ggplot(
+  iris_long,
+  aes(x = variable, y = value, colour = Species, group = id)
+) +
+  geom_line(alpha = 0.25, linewidth = 0.6) +
+  theme_minimal() +
+  labs(
+    x = NULL,
+    y = "Measurement",
+    title = "Iris Profile Plot"
+  )
+```
+### Echinacea
 ```{r}
 echinacea <- read_sav("data/Book 3/echinacea.sav")
 ```
 
 ```{r}
+echinacea_long <- echinacea %>%
+  pivot_longer(
+    cols = lCu:lCa,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  group_by(variable) %>%
+  mutate(variable_mean = mean(value)) %>%
+  ungroup() %>%
+  mutate(
+    variable = reorder(variable, variable_mean)
+  )
+
+ggplot(
+  echinacea_long,
+  aes(x = variable, y = value, col = sample, lty = sample, group = sample)
+) +
+  geom_line(alpha = 0.5, linewidth = 1) +
+  theme_minimal() +
+  labs(
+    x = NULL,
+    y = "Measurement",
+    title = "Echinacea Profile Plot"
+  )
+```
+
+### Iberian hams
+```{r}
 hams <- read_sav("data/Book 3/hams.sav")
+```
+
+```{r}
+hams_long <- hams %>%
+  pivot_longer(
+    cols = s1:s15,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    variable = factor(variable, levels = paste0("s", 1:15)),
+    setting = factor(setting)
+  )
+
+ggplot(
+  hams_long,
+  aes(x = variable, y = value, col = setting, group = setting)
+) +
+  geom_line(alpha = 0.5, linewidth = 0.8) +
+  theme_minimal() +
+  labs(
+    x = NULL,
+    y = "Measurement",
+    title = "Iberian Hams Profile Plot"
+  )
 ```
 
 # Numerical summaries and standardisation
@@ -169,34 +319,7 @@ summary(aov(Sepal.Width ~ Species, data = iris))
 
 ### Within- and between-group covariance
 
-```{r message=FALSE}
-ggpairs(
-  iris,
-  columns = 1:4,
-  aes(color = Species, alpha = 0.7)
-) + theme_minimal()
-```
 
-Profile plot
-```{r}
-iris_long <- iris %>%
-  mutate(id = row_number()) %>%        # unique ID per observation
-  pivot_longer(
-    cols = Sepal.Length:Petal.Width,
-    names_to = "variable",
-    values_to = "value"
-  )
-
-ggplot(iris_long,
-       aes(x = variable, y = value, colour = Species, group = id)) +
-  geom_line(alpha = 0.25, linewidth =  0.6) +
-  theme_minimal() +
-  labs(
-    x = NULL,
-    y = "Measurement",
-    title = "Iris Profile Plot"
-  )
-```
 
 ```{r}
 iris %>% mutate(cp = (Sepal.Length - mean(Sepal.Length)) * (Petal.Width - mean(Petal.Width))) %>%
@@ -297,8 +420,6 @@ head(pred$x)   # columns LD1, LD2 (since 3 classes -> at most 2 LDs)
 ```
 
 ```{r}
-library(ggplot2)
-
 lda_df <- data.frame(
   LD1 = pred$x[, 1],
   LD2 = pred$x[, 2],
