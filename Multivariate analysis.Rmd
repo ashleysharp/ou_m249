@@ -559,21 +559,14 @@ ggplot(mathsability2_aug, aes(x = PC1, y = PC2, col = form)) +
   theme_minimal()
 ```
 
-# Canonical discriminant analysis
+# Linear discriminant analysis
 
 ## Iris
 
-### Variance pooled within groups
+### Variance
+#### Pooled within group variance
 
-Using group variances
-$$
-s_W^2
-=
-\frac{\sum_{g=1}^G (n_g - 1)\, s_g^2}
-{\sum_{g=1}^G (n_g - 1)}
-$$
-
-Using raw derivations from group means
+**Sum of squares form**
 $$
 s_W^2
 =
@@ -585,7 +578,14 @@ s_W^2
 }
 $$
 
-Connecting identity
+**Variance-weighted form**
+$$
+s_W^2
+=
+\frac{\sum_{g=1}^G (n_g - 1)\, s_g^2}
+{\sum_{g=1}^G (n_g - 1)}
+$$
+**Proof of equivalence**
 $$
 \begin{aligned}
 \bar{x}_g &= \frac{1}{n_g}\sum_{i \in g} x_{ig} \\
@@ -603,7 +603,8 @@ iris_groups <- iris |>
   pivot_longer(1:4, names_to = "variable", values_to = "value") |> 
   group_by(Species, variable) |>
   summarise(n = n(),
-            sse = sum((value - mean(value))^2),
+            xbar = mean(value),
+            sse = sum((value - xbar)^2),
             s2 = sse / (n-1),
             .groups = "drop") |> 
   select(variable, everything()) |> 
@@ -614,66 +615,115 @@ iris_groups
 
 
 ```{r}
-iris_pooled_w <- iris_groups |>
+iris_pooled_s2_w <- iris_groups |>
   group_by(variable) |>
   summarise(
-    msw = sum(sse) / sum(n - 1), # pooled from sse
-    #msw  = sum((n - 1)*s2) / sum(n - 1), # pooled from s2
+    ssw = sum(sse),
+    df_w = sum(n - 1),
+    msw = ssw / df_w, # pooled from sse
+    # msw  = sum(s2*(n - 1)) / df_w, # pooled from s2
     .groups = "drop"
   )
-iris_pooled_w
+iris_pooled_s2_w
 ```
 
-### Variance pooled between groups
+#### Pooled between-group variance
+
+**Sum of squares form**
+$$
+
+\mathrm{SS}_B
+=
+\sum_{g=1}^{G}
+n_g
+\left(
+\bar{x}_g - \bar{x}
+\right)^2,
+\qquad
+s_B^2
+=
+\frac{\mathrm{SS}_B}{G - 1}
+$$
+
+**Group means form**
+$$
+s_B^2
+=
+\frac{1}{G - 1}
+\sum_{g=1}^{G}
+n_g
+\left(
+\bar{x}_g - \bar{x}
+\right)^2
+$$
 
 ```{r}
-grand_mean <- mean(iris$Petal.Length)
-iris_b <- iris_groups |> mutate(sq_res = n_g*(mean_g - grand_mean)^2) |>
-  summarise(ssb = sum(sq_res),
-            df = n()-1,
-            msb = ssb/df)
+grand_means <- iris |>
+  pivot_longer(1:4, names_to = "variable", values_to = "value") |>
+  group_by(variable) |>
+  summarise(grand_mean = mean(value), .groups = "drop")
+
+iris_b <- iris_groups |>
+  left_join(grand_means, by = "variable") |>
+  group_by(variable) |>
+  summarise(
+    ssb = sum(n * (xbar - grand_mean)^2),
+    df_b = n() - 1,
+    msb = ssb / df_b,
+    .groups = "drop"
+  )
 iris_b
 ```
 
+#### Summary
 ```{r}
-str_c("ssb = ", round(iris_b$ssb, 2),
+str_c(iris_b$variable,
       ", msb = ", round(iris_b$msb, 2), 
-      ", ssw = ", round(iris_w$ssw, 2),
       ", msw = ", round(iris_w$msw, 2),
       ", msb/msw = ", round(iris_b$msb/iris_w$msw, 2),
       ", ss_t = ", round(iris_b$ssb + iris_w$ssw, 2))
 ```
 
+**Note: total sum of squares = ssb + ssw**
+```{r}
+iris |> 
+  pivot_longer(1:4, names_to = "variable", values_to = "value") |> 
+  group_by(variable) |>
+  summarise(sse = round(
+    sum((value - mean(value))^2), 
+    2),
+            .groups = "drop")
+```
+####aov()
 ```{r}
 summary(aov(Petal.Length ~ Species, data = iris))
 summary(aov(Petal.Width ~ Species, data = iris))
 summary(aov(Sepal.Length ~ Species, data = iris))
 summary(aov(Sepal.Width ~ Species, data = iris))
 ```
+### Covariance
 
-### Covariance pooled within groups
-
-```{r}
-iris |> mutate(cp = (Sepal.Length - mean(Sepal.Length)) * (Petal.Width - mean(Petal.Width))) |>
-  summarise(scp = sum(cp), # Sum of cross products
-            cov = scp/(n()-1),
-            cor = cov/(sd(Sepal.Length)*sd(Petal.Width)))
-```
-
+#### Covariance matrix (centred variables)
 ```{r}
 iris_centred <- scale(iris[, 1:4], center = TRUE, scale = FALSE)
+
 t(iris_centred) %*% iris_centred / (nrow(iris) - 1)
-#crossprod(iris_centred) / (nrow(iris) - 1)
+
+# Equivalent:
+# crossprod(iris_centred) / (nrow(iris) - 1)
 # cov(iris[, 1:4])
 ```
-
+#### Correlation matrix (standardised variables)
 ```{r}
 iris_standardised <- scale(iris[, 1:4], center = TRUE, scale = TRUE)
+
 t(iris_standardised) %*% iris_standardised / (nrow(iris) - 1) 
+
+# Equivalent
 # crossprod(iris_standardised) / (nrow(iris) - 1) 
 # cor(iris[, 1:4])
 ```
-
+#### Pooled within group covariance
 ```{r}
 X <- as.matrix(iris[, 1:4])   # numeric variables
 g <- iris$Species              # grouping factor
@@ -699,7 +749,7 @@ SW_cov <- SW / (n - G)
 SW_cov
 ```
 
-### Covariance pooled between groups
+#### Pooled between group covariance
 ```{r}
 grand_mean <- colMeans(X)
 SB <- matrix(0, p, p)
@@ -726,11 +776,23 @@ ST <- t(Xc) %*% Xc
 all.equal(ST, SW + SB)
 ```
 
+#### manova()
+```{r}
+fit <- manova(cbind(
+  Sepal.Length,
+  Sepal.Width,
+  Petal.Length,
+  Petal.Width
+) ~ Species, data = iris)
+
+summary(fit)
+```
+
 ### lda()
 
 ```{r}
 # Fit LDA
-fit <- lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+fit <- MASS::lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
            data = iris)
 
 fit
@@ -788,27 +850,4 @@ banknotes2 <- read_sav("data/Book 3/banknotes2.sav")
 
 ```{r}
 testsat <- read_sav("data/Book 3/testsat.sav")
-```
-
-```{r}
-set.seed(123)
-n <- 300
-
-Sigma <- matrix(
-  c(1.0,  0.6,  0.3,
-    0.6,  1.0,  0.5,
-    0.3,  0.5,  1.0),
-  nrow = 3
-)
-
-dat <- mvrnorm(
-  n = n,
-  mu = c(0, 0, 0),
-  Sigma = Sigma
-)
-
-dat <- as.data.frame(dat)
-names(dat) <- c("x1", "x2", "x3")
-
-cor(dat)
 ```
