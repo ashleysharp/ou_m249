@@ -4,7 +4,7 @@ output: html_document
 date: "2025-07-05"
 ---
 
-```{r}
+```{r message=FALSE}
 library(tidyverse)
 library(janitor)
 library(haven)
@@ -14,9 +14,11 @@ data(iris)
 ```
 
 # Data visualisation
+
 ## Scatterplots
 
 ### Housing
+
 ```{r}
 housing <- read_sav("data/Book 3/housing.sav")
 ```
@@ -41,6 +43,7 @@ ggplot(
 ```
 
 ### Crime
+
 ```{r}
 crimeloss1 <- read_sav("data/Book 3/crimeloss1.sav")
 ```
@@ -65,6 +68,7 @@ ggplot(
 ## Matrix scatterplots
 
 ### Iris
+
 ```{r message=FALSE}
 ggpairs(
   iris,
@@ -75,6 +79,7 @@ ggpairs(
 ```
 
 ### Local education authorities
+
 ```{r}
 lea <- read_sav("data/Book 3/lea.sav")
 ```
@@ -99,10 +104,10 @@ ggpairs(
   theme_minimal()
 ```
 
-
 ## Profile plots
 
 ### Iris
+
 ```{r}
 iris_long <- iris |>
   mutate(id = row_number()) |>
@@ -130,7 +135,9 @@ ggplot(
     title = "Iris Profile Plot"
   )
 ```
+
 ### Echinacea
+
 ```{r}
 echinacea <- read_sav("data/Book 3/echinacea.sav")
 ```
@@ -163,6 +170,7 @@ ggplot(
 ```
 
 ### Iberian hams
+
 ```{r}
 hams <- read_sav("data/Book 3/hams.sav")
 ```
@@ -195,6 +203,7 @@ ggplot(
 # Numerical summaries and standardisation
 
 ## Mean vectors
+
 ### Housing
 
 ```{r}
@@ -206,6 +215,7 @@ housing |>
     )
   )
 ```
+
 ```{r}
 housing |>
   select(houseprice, income) |>
@@ -226,6 +236,7 @@ housing |>
 ## Standardising variables
 
 ### Housing
+
 ```{r}
 Z_housing <- housing |>
   mutate(
@@ -248,6 +259,7 @@ Z_housing |>
 ## Covariance and correlation matrices
 
 ### Maths ability
+
 ```{r}
 mathsability <- read_sav("data/Book 3/mathsability.sav")
 ```
@@ -255,10 +267,13 @@ mathsability <- read_sav("data/Book 3/mathsability.sav")
 ```{r}
 cov(mathsability |> select(age:algebra))
 ```
+
 ```{r}
 cor(mathsability |> select(age:algebra))
 ```
+
 ### Crime
+
 ```{r}
 crimeloss2 <- read_sav("data/Book 3/crimeloss2.sav")
 ```
@@ -275,6 +290,7 @@ crimeloss2 |> summarise(
 ```{r}
 cov(crimeloss2 |> select(proploss:localexp))
 ```
+
 ```{r}
 cor(crimeloss2 |> select(proploss:localexp))
 ```
@@ -282,7 +298,9 @@ cor(crimeloss2 |> select(proploss:localexp))
 # Principle Component analysis
 
 ## Iris
+
 ### base
+
 ```{r}
 X <- as.matrix(iris[, 1:4])
 
@@ -313,6 +331,7 @@ pc2 <- Z %*% vectors[,1:2]
 ```
 
 ### prcomp()
+
 ```{r}
 X <- iris[, 1:4]
 
@@ -333,7 +352,9 @@ p$sdev^2 / sum(p$sdev^2)
 ```
 
 ## Standardised data
+
 ### Maths ability
+
 ```{r}
 X <- mathsability[, 3:6]
 p <- prcomp(X, center = TRUE, scale. = TRUE)  # correlation PCA
@@ -353,6 +374,7 @@ p$sdev^2
 # loadings (eigenvectors). Note: sum of squared loadings = 1
 p$rotation
 ```
+
 ```{r}
 sum(p$rotation[,1]^2)
 ```
@@ -364,6 +386,7 @@ sweep(-p$rotation, 2, p$sdev, `*`)
 ```
 
 ### Wells
+
 ```{r}
 wells <- read_sav("data/Book 3/wells.sav")
 ```
@@ -392,7 +415,6 @@ keep <- eig[eig > 1] # Kaiser's criterion
 keep
 ```
 
-
 ```{r}
 pve <- eig / sum(eig) # proportion variance explained
 cpve <- cumsum(pve) # cumulative
@@ -407,6 +429,7 @@ p$rotation[, 1:2]
 ## Unstandardised data
 
 ### Local education authorities
+
 ```{r}
 X <- lea[,2:4]
 p <- prcomp(X, center = TRUE, scale. = FALSE)
@@ -415,6 +438,7 @@ p <- prcomp(X, center = TRUE, scale. = FALSE)
 ```{r}
 summary(p)
 ```
+
 ```{r}
 eig <- p$sdev^2
 keep <- eig[eig > mean(eig)] # Kaiser's criterion, components with variance greater than the average
@@ -429,13 +453,14 @@ tve
 pve
 ```
 
-
 ### Maths ability
+
 ```{r}
 mathsability2 <- read_sav("data/Book 3/mathsability2.sav")
 ```
 
 #### Standardised
+
 ```{r}
 X <- mathsability2 |> select(A:I)
 p <- prcomp(X, center = TRUE, scale. = TRUE)
@@ -475,6 +500,7 @@ keep
 ```
 
 Variables with largest variances also have largest loadings (PCA chases variance)
+
 ```{r}
 mathsability2 |> summarise(
   across(
@@ -488,7 +514,9 @@ mathsability2 |> summarise(
 ```
 
 # Extracting and plotting principle components
+
 ## Scree plot
+
 ```{r}
 X <- mathsability2 |> select(A:I)
 p <- prcomp(X, center = TRUE, scale. = TRUE)
@@ -505,15 +533,18 @@ ggplot(
   scale_x_continuous(breaks = seq_along(eig)) +
   theme_minimal()
 ```
+
 ```{r}
 -p$rotation[, 1:3]
 ```
 
 ## Scatterplot
+
 ```{r}
 as_tibble(-p$x[,1:3]) |> ggpairs() + 
   theme_minimal()
 ```
+
 ```{r}
 mathsability2_aug <- mathsability2 |>
   bind_cols(
@@ -529,33 +560,71 @@ ggplot(mathsability2_aug, aes(x = PC1, y = PC2, col = form)) +
 ```
 
 # Canonical discriminant analysis
+
 ## Iris
-### Within- and between- group variance
-```{r}
-iris |> mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) |>
-  summarise(mean = mean(Petal.Length),
-            tss = sum(sq_res),
-            s2 = tss/(n()-1))
-```
+
+### Variance pooled within groups
+
+Using group variances
+$$
+s_W^2
+=
+\frac{\sum_{g=1}^G (n_g - 1)\, s_g^2}
+{\sum_{g=1}^G (n_g - 1)}
+$$
+
+Using raw derivations from group means
+$$
+s_W^2
+=
+\frac{
+\sum_{g=1}^G \sum_{i \in g}
+\left(x_{ig} - \bar{x}_g\right)^2
+}{
+\sum_{g=1}^G (n_g - 1)
+}
+$$
+
+Connecting identity
+$$
+\begin{aligned}
+\bar{x}_g &= \frac{1}{n_g}\sum_{i \in g} x_{ig} \\
+s_g^2 &= \frac{1}{n_g - 1}
+\sum_{i \in g}
+\left(x_{ig} - \bar{x}_g\right)^2 \\
+(n_g - 1)s_g^2 &=
+\sum_{i \in g}
+\left(x_{ig} - \bar{x}_g\right)^2
+\end{aligned}
+$$
 
 ```{r}
-iris_groups <- iris |> group_by(Species) |>
-  mutate(sq_res = (Petal.Length - mean(Petal.Length))^2) |>
-  summarise(mean_g = mean(Petal.Length),
-            ss_g = sum(sq_res), 
-            s2_g = ss_g/(n()-1),
-            n_g = n(),
-            .groups = "drop")
+iris_groups <- iris |> 
+  pivot_longer(1:4, names_to = "variable", values_to = "value") |> 
+  group_by(Species, variable) |>
+  summarise(n = n(),
+            sse = sum((value - mean(value))^2),
+            s2 = sse / (n-1),
+            .groups = "drop") |> 
+  select(variable, everything()) |> 
+  arrange(variable)
+
 iris_groups
 ```
 
+
 ```{r}
-iris_w <- iris_groups |>
-  summarise(ssw = sum(ss_g), #ssw = sum((n_g-1)*s2_g),
-            df = sum(n_g) - n(), #N - G
-            msw = ssw/df) #Pooled within-group sample variance
-iris_w
+iris_pooled_w <- iris_groups |>
+  group_by(variable) |>
+  summarise(
+    msw = sum(sse) / sum(n - 1), # pooled from sse
+    #msw  = sum((n - 1)*s2) / sum(n - 1), # pooled from s2
+    .groups = "drop"
+  )
+iris_pooled_w
 ```
+
+### Variance pooled between groups
 
 ```{r}
 grand_mean <- mean(iris$Petal.Length)
@@ -582,7 +651,7 @@ summary(aov(Sepal.Length ~ Species, data = iris))
 summary(aov(Sepal.Width ~ Species, data = iris))
 ```
 
-### Within- and between-group covariance
+### Covariance pooled within groups
 
 ```{r}
 iris |> mutate(cp = (Sepal.Length - mean(Sepal.Length)) * (Petal.Width - mean(Petal.Width))) |>
@@ -604,7 +673,6 @@ t(iris_standardised) %*% iris_standardised / (nrow(iris) - 1)
 # crossprod(iris_standardised) / (nrow(iris) - 1) 
 # cor(iris[, 1:4])
 ```
-
 
 ```{r}
 X <- as.matrix(iris[, 1:4])   # numeric variables
@@ -631,6 +699,7 @@ SW_cov <- SW / (n - G)
 SW_cov
 ```
 
+### Covariance pooled between groups
 ```{r}
 grand_mean <- colMeans(X)
 SB <- matrix(0, p, p)
@@ -658,6 +727,7 @@ all.equal(ST, SW + SB)
 ```
 
 ### lda()
+
 ```{r}
 # Fit LDA
 fit <- lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
@@ -699,16 +769,16 @@ ggplot(lda_df, aes(x = LD1, y = LD2, colour = Species)) +
 ```
 
 ## Banknotes
+
 ```{r}
 banknotes <- read_sav("data/Book 3/banknotes.sav")
 ```
 
-
 ## Satelites
+
 ```{r}
 satellite <- read_sav("data/Book 3/satellite.sav")
 ```
-
 
 # Allocation
 
@@ -719,7 +789,6 @@ banknotes2 <- read_sav("data/Book 3/banknotes2.sav")
 ```{r}
 testsat <- read_sav("data/Book 3/testsat.sav")
 ```
-
 
 ```{r}
 set.seed(123)
