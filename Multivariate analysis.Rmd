@@ -9,6 +9,7 @@ library(tidyverse)
 library(janitor)
 library(haven)
 library(GGally)
+library(janitor)
 
 data(iris)
 ```
@@ -238,16 +239,25 @@ housing |>
 ### Housing
 
 ```{r}
-Z_housing <- housing |>
+housing_Z <- housing |>
   mutate(
     across(
       c(houseprice, income),
-      \(x) as.numeric(scale(x)),#scale() outputs a matrix, make numeric
+      \(x) as.numeric(scale(x)), #scale() outputs a matrix, make numeric
       .names = "Z{.col}"
       )
     )
+housing_Z
+```
 
-Z_housing |>
+```{r}
+# housing_Z <- housing
+# Z_housing_[, c("houseprice", "income")] <- scale(housing[, c("houseprice", "income")])
+# housing_Z
+```
+
+```{r}
+housing_Z |>
   summarise(
     across(
       c(Zhouseprice, Zincome),
@@ -689,7 +699,8 @@ str_c(iris_b$variable,
 iris |> 
   pivot_longer(1:4, names_to = "variable", values_to = "value") |> 
   group_by(variable) |>
-  summarise(sse = round(
+  summarise(
+    sse = round(
     sum((value - mean(value))^2), 
     2),
             .groups = "drop")
@@ -790,25 +801,31 @@ summary(fit)
 
 ### lda()
 
+**Note: Unstandardised by default**
 ```{r}
-# Fit LDA
 fit <- MASS::lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
            data = iris)
-
 fit
-# Class priors, group means, and linear discriminants (scaling)
+```
 
+```{r}
 # Predict
-pred <- predict(fit, newdata = iris)
+pred <- predict(fit, newdata = iris) #Don't need to specify newdata = iris, original data used by default
 names(pred)
 # "class" "posterior" "x"  (x = LD scores)
+```
 
+```{r}
 # Confusion matrix (training set)
 table(Truth = iris$Species, Pred = pred$class)
+```
 
+```{r}
 # Accuracy
 mean(pred$class == iris$Species)
+```
 
+```{r}
 # LD scores
 head(pred$x)   # columns LD1, LD2 (since 3 classes -> at most 2 LDs)
 ```
@@ -830,23 +847,341 @@ ggplot(lda_df, aes(x = LD1, y = LD2, colour = Species)) +
   theme_minimal()
 ```
 
-## Banknotes
+## Obtaining a discriminant function
+### Banknotes
 
 ```{r}
 banknotes <- read_sav("data/Book 3/banknotes.sav")
 ```
 
-## Satelites
+#### Standardised
+
+```{r}
+# ============================================================
+# Recreate SPSS "Standardized Canonical Discriminant Function Coefficients"
+# (Banknotes example) using an explicitly constructed pooled
+# within-group covariance matrix
+# ============================================================
+
+# Rationale:
+# ----------
+# In Canonical Discriminant Analysis, SPSS reports
+# "Standardized Canonical Discriminant Function Coefficients".
+#
+# These are NOT obtained by globally standardising variables.
+# Instead, coefficients are scaled using the POOLED within-group
+# standard deviations, derived from the pooled within-group
+# covariance matrix S_W.
+#
+# If b are the unstandardised canonical coefficients from LDA,
+# and sW_j are the pooled within-group SDs, then SPSS reports:
+#
+#   b*_j = b_j × sW_j
+#
+# The sign of the discriminant function is arbitrary and may
+# differ between R and SPSS.
+
+# ------------------------------------------------------------
+# 1) Build X (numeric data matrix) and g (grouping factor)
+# ------------------------------------------------------------
+
+X <- as.matrix(banknotes[, c("length", "lwidth", "rwidth",
+                             "bottom", "top", "diagonal")])
+
+g <- as.factor(banknotes$type)
+
+p <- ncol(X)
+n <- nrow(X)
+groups <- levels(g)
+G <- length(groups)
+
+# ------------------------------------------------------------
+# 2) Construct pooled within-group SSCP matrix
+#    SW = Σ_g (X_g − x̄_g)'(X_g − x̄_g)
+# ------------------------------------------------------------
+
+SW <- matrix(0, p, p)
+
+for (grp in groups) {
+  Xg <- X[g == grp, , drop = FALSE]
+  Xg_centered <- scale(Xg, center = TRUE, scale = FALSE)
+  SW <- SW + t(Xg_centered) %*% Xg_centered
+}
+
+# ------------------------------------------------------------
+# 3) Convert to pooled within-group covariance matrix
+#    S_W = SW / (n − G)
+# ------------------------------------------------------------
+
+SW_cov <- SW / (n - G)
+
+# Pooled within-group SDs (used for SPSS-style standardisation)
+sW <- sqrt(diag(SW_cov))
+names(sW) <- colnames(X)
+
+# ------------------------------------------------------------
+# 4) Fit LDA on the ORIGINAL (unstandardised) variables
+# ------------------------------------------------------------
+
+fit <- MASS::lda(
+  type ~ length + lwidth + rwidth + bottom + top + diagonal,
+  data = banknotes
+)
+
+# Unstandardised canonical coefficients (Function 1 only)
+b <- drop(fit$scaling[, 1])
+names(b) <- colnames(X)
+
+# ------------------------------------------------------------
+# 5) SPSS "Standardized Canonical Discriminant Coefficients"
+#    b* = b ⊙ sW
+# ------------------------------------------------------------
+
+b_spss <- b * sW
+
+round(b_spss, 3)
+```
+
+
+```{r}
+# In MASS::lda(), fit$svd are singular values from a whitened
+# between-group matrix. Squaring them gives canonical roots up to
+# a scaling convention.
+lambda_mass <- fit$svd^2
+
+# N = total number of observations, G = number of groups
+G <- length(fit$lev)
+df_w <- fit$N - G  # within-group degrees of freedom (N - G)
+
+# To match the SPSS/book "Eigenvalue" column, adjust MASS's scaling by
+# converting from an SSCP-style scaling to a covariance-style scaling.
+# For this convention the conversion factor is (G - 1) / (N - G).
+lambda_spss <- lambda_mass * (G - 1) / df_w
+lambda_spss
+
+# Canonical correlation corresponding to each eigenvalue:
+# r^2 = lambda / (1 + lambda)
+r <- sqrt(lambda_spss / (1 + lambda_spss))
+r
+```
+
+
+#### Unstandardised
+```{r}
+fit <- MASS::lda(type ~ length + lwidth + rwidth + bottom + top + diagonal,
+           data = banknotes)
+fit
+```
+
+```{r}
+lambda_mass <- fit$svd^2
+
+G <- length(fit$lev)
+df_w <- fit$N - G
+
+lambda_spss <- lambda_mass * (G - 1) / df_w
+lambda_spss
+
+r <- sqrt(lambda_spss / (1 + lambda_spss))
+r
+```
+
+### Satelite imaging of soil type
 
 ```{r}
 satellite <- read_sav("data/Book 3/satellite.sav")
 ```
 
+```{r}
+X <- as.matrix(satellite[, c("bandA", "bandB", "bandC", "bandD")])
+g <- as.factor(satellite$group)
+
+p <- ncol(X)
+n <- nrow(X)
+groups <- levels(g)
+G <- length(groups)
+
+SW <- matrix(0, p, p)
+
+for (grp in groups) {
+  Xg <- X[g == grp, , drop = FALSE]
+  Xg_centered <- scale(Xg, center = TRUE, scale = FALSE)
+  SW <- SW + t(Xg_centered) %*% Xg_centered
+}
+
+SW_cov <- SW / (n - G)
+
+sW <- sqrt(diag(SW_cov))
+names(sW) <- colnames(X)
+
+fit <- MASS::lda(group ~ bandA + bandB + bandC + bandD, data = satellite)
+
+b <- fit$scaling                    # p x (<= min(p, G-1)) matrix
+b_spss <- sweep(b, 1, sW, `*`)       # multiply each row by sW
+
+if (b_spss[1] < 0) b_spss <- -b_spss
+
+round(b_spss, 3)
+```
+```{r}
+lambda_mass <- fit$svd^2
+
+G <- length(fit$lev)
+df_w <- fit$N - G
+
+lambda_spss <- lambda_mass * (G - 1) / df_w
+lambda_spss
+
+r <- sqrt(lambda_spss / (1 + lambda_spss))
+r
+```
+
+```{r}
+# percent separation per discriminant function
+pct_sep <- 100 * lambda_spss / sum(lambda_spss)
+
+# cumulative percent separation
+cum_pct_sep <- cumsum(pct_sep)
+
+pct_sep
+cum_pct_sep
+```
+
+```{r}
+# Unstandardised coefficients (sign flipped to match SPSS)
+-fit$scaling
+```
+
+## Extracting and plotting discriminant functions
+
+### Banknotes
+```{r}
+fit <- MASS::lda(
+  type ~ length + lwidth + rwidth + bottom + top + diagonal,
+  data = banknotes
+)
+```
+
+```{r}
+scores <- predict(fit)$x  # matrix of LD scores (for 2 groups: one column, LD1)
+
+banknotes_ld <- banknotes |> 
+  mutate(LD1 = scores[, 1])
+```
+
+```{r}
+ggplot(banknotes_ld, aes(x = LD1)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ type, ncol = 1) +
+  theme_minimal()
+```
+
+```{r}
+scores <- as.data.frame(predict(fit)$x) |>
+  mutate(type = banknotes$type)
+
+centroids <- scores |>
+  group_by(type) |>
+  summarise(across(starts_with("LD"), mean))
+
+centroids
+```
+
+### Satelite imaging of soil type
+
+```{r}
+fit <- MASS::lda(group ~ bandA + bandB + bandC + bandD, data = satellite)
+
+fit
+```
+
+```{r}
+scores <- predict(fit)$x  # matrix of LD scores (for 2 groups: one column, LD1)
+
+satellite_ld <- satellite |> 
+  mutate(LD1 = scores[, 1],
+         LD2 = scores[, 2],
+         LD3 = scores[, 3],
+         LD4 = scores[, 4])
+```
+
+```{r}
+ggplot(satellite_ld, aes(x = -LD1, fill = factor(group))) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ group, ncol = 1) +
+  theme_minimal()
+
+ggplot(satellite_ld, aes(x = -LD2, fill = factor(group))) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ group, ncol = 1) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(satellite_ld, aes(x = -LD1, y = LD2, colour = factor(group))) +
+  geom_point(alpha = 0.3) +
+  theme_minimal()
+```
+
 # Allocation
 
 ```{r}
-banknotes2 <- read_sav("data/Book 3/banknotes2.sav")
+banknotes <- read_sav("data/Book 3/banknotes.sav")
 ```
+
+```{r}
+fit <- MASS::lda(
+  type ~ length + lwidth + rwidth + bottom + top + diagonal,
+  data = banknotes
+)
+```
+
+```{r}
+pred <- predict(fit)
+scores <- pred$x
+class <- pred$class # Based on posterior probability (Baysean)
+
+banknotes_ld <- banknotes |> 
+  mutate(LD1 = scores[, 1],
+         allocated = case_when(LD1 > 0 ~ 2,
+                               LD1 < 0 ~ 1),
+         class = class,
+         valid = allocated == type)
+```
+
+```{r}
+# Note: class equivalent to allocation rule
+banknotes_ld |> count(allocated, class)
+```
+
+```{r}
+banknotes_ld |> 
+  count(allocated, type) |> 
+  pivot_wider(names_from = type, values_from = n, values_fill = 0) |> 
+  adorn_totals("both")
+```
+
+```{r}
+# Confusion matrix
+banknotes_ld |> 
+  
+```
+
+```{r}
+# Confusion matrix (training set)
+table(Truth = banknotes$type, Pred = pred$class)
+```
+
+```{r}
+# Accuracy
+mean(pred$class == as.numeric(banknotes$type))
+```
+
+```{r}
+# LD scores
+head(pred$x)   # columns LD1, LD2 (since 3 classes -> at most 2 LDs)
+```
+
 
 ```{r}
 testsat <- read_sav("data/Book 3/testsat.sav")
