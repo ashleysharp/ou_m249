@@ -10,6 +10,7 @@ library(janitor)
 library(haven)
 library(GGally)
 library(janitor)
+library(gt)
 
 data(iris)
 ```
@@ -625,7 +626,7 @@ iris_groups
 
 
 ```{r}
-iris_pooled_s2_w <- iris_groups |>
+iris_w <- iris_groups |>
   group_by(variable) |>
   summarise(
     ssw = sum(sse),
@@ -634,7 +635,7 @@ iris_pooled_s2_w <- iris_groups |>
     # msw  = sum(s2*(n - 1)) / df_w, # pooled from s2
     .groups = "drop"
   )
-iris_pooled_s2_w
+iris_w
 ```
 
 #### Pooled between-group variance
@@ -851,7 +852,14 @@ ggplot(lda_df, aes(x = LD1, y = LD2, colour = Species)) +
 ### Banknotes
 
 ```{r}
-banknotes <- read_sav("data/Book 3/banknotes.sav")
+banknotes <- read_sav("data/Book 3/banknotes.sav") |>
+  mutate(
+    type = factor(
+      type,
+      levels = c(1, 2),
+      labels = c("Genuine", "Counterfeit")
+    )
+  )
 ```
 
 #### Standardised
@@ -986,10 +994,24 @@ r <- sqrt(lambda_spss / (1 + lambda_spss))
 r
 ```
 
-### Satelite imaging of soil type
+### Soil type
 
 ```{r}
-satellite <- read_sav("data/Book 3/satellite.sav")
+satellite <- read_sav("data/Book 3/satellite.sav") |>
+  mutate(
+    group = factor(
+      group,
+      levels = 1:6,
+      labels = c(
+        "red soil",
+        "cotton crop",
+        "grey soil",
+        "damp grey soil",
+        "stubble",
+        "very damp grey soil"
+      )
+    )
+  )
 ```
 
 ```{r}
@@ -1069,6 +1091,7 @@ banknotes_ld <- banknotes |>
   mutate(LD1 = scores[, 1])
 ```
 
+#### Histograms
 ```{r}
 ggplot(banknotes_ld, aes(x = LD1)) +
   geom_histogram(bins = 30) +
@@ -1076,22 +1099,17 @@ ggplot(banknotes_ld, aes(x = LD1)) +
   theme_minimal()
 ```
 
+#### Centroids
 ```{r}
-scores <- as.data.frame(predict(fit)$x) |>
-  mutate(type = banknotes$type)
-
-centroids <- scores |>
+banknotes_ld |> 
   group_by(type) |>
   summarise(across(starts_with("LD"), mean))
-
-centroids
 ```
 
-### Satelite imaging of soil type
+### Soil type
 
 ```{r}
 fit <- MASS::lda(group ~ bandA + bandB + bandC + bandD, data = satellite)
-
 fit
 ```
 
@@ -1099,24 +1117,35 @@ fit
 scores <- predict(fit)$x  # matrix of LD scores (for 2 groups: one column, LD1)
 
 satellite_ld <- satellite |> 
-  mutate(LD1 = scores[, 1],
+  mutate(LD1 = -scores[, 1], # Changed sign to match SPSS
          LD2 = scores[, 2],
          LD3 = scores[, 3],
          LD4 = scores[, 4])
 ```
 
+#### Histograms
 ```{r}
-ggplot(satellite_ld, aes(x = -LD1, fill = factor(group))) +
+ggplot(satellite_ld, aes(x = LD1, fill = factor(group))) +
   geom_histogram(bins = 30) +
   facet_wrap(~ group, ncol = 1) +
   theme_minimal()
 
-ggplot(satellite_ld, aes(x = -LD2, fill = factor(group))) +
+ggplot(satellite_ld, aes(x = LD2, fill = factor(group))) +
   geom_histogram(bins = 30) +
   facet_wrap(~ group, ncol = 1) +
   theme_minimal()
 ```
+#### Centroids
 
+```{r}
+satellite_ld |> 
+  group_by(group) |>
+  summarise(across(starts_with("LD"), mean)) |> 
+  arrange(LD1)
+```
+
+
+#### Scatterplot
 ```{r}
 ggplot(satellite_ld, aes(x = -LD1, y = LD2, colour = factor(group))) +
   geom_point(alpha = 0.3) +
@@ -1125,9 +1154,7 @@ ggplot(satellite_ld, aes(x = -LD1, y = LD2, colour = factor(group))) +
 
 # Allocation
 
-```{r}
-banknotes <- read_sav("data/Book 3/banknotes.sav")
-```
+## Banknotes
 
 ```{r}
 fit <- MASS::lda(
@@ -1136,53 +1163,252 @@ fit <- MASS::lda(
 )
 ```
 
+### Predict
+
 ```{r}
 pred <- predict(fit)
 scores <- pred$x
 class <- pred$class # Based on posterior probability (Baysean)
 
-banknotes_ld <- banknotes |> 
-  mutate(LD1 = scores[, 1],
-         allocated = case_when(LD1 > 0 ~ 2,
-                               LD1 < 0 ~ 1),
-         class = class,
-         valid = allocated == type)
+banknotes_pred <- banknotes_ld |>
+  mutate(
+    allocated = case_when(
+      LD1 > 0 ~ "Counterfeit",
+      LD1 < 0 ~ "Genuine",
+      TRUE    ~ NA_character_
+    ),
+    allocated = factor(allocated, levels = levels(type)),
+    class = class
+  )
 ```
 
 ```{r}
-# Note: class equivalent to allocation rule
-banknotes_ld |> count(allocated, class)
+# Note: class equivalent to allocation rule as binary
+banknotes_pred |> count(allocated, class)
 ```
 
 ```{r}
-banknotes_ld |> 
-  count(allocated, type) |> 
-  pivot_wider(names_from = type, values_from = n, values_fill = 0) |> 
-  adorn_totals("both")
+banknotes_pred |>
+  count(allocated, name = "Frequency") |>
+  mutate(
+    Percent = 100 * Frequency / sum(Frequency),
+    ValidPercent = Percent,  # same because no missing values
+    CumulativePercent = cumsum(ValidPercent)
+  )
+```
+
+### Confusion matrix
+```{r}
+tabyl(banknotes_pred, type, allocated) |>
+  adorn_totals(c("row", "col")) |>
+  adorn_percentages("row") |>
+  adorn_pct_formatting(digits = 1, affix_sign = TRUE) |>
+  adorn_ns(position = "front") |>
+  adorn_title(
+    row_name = "Truth",
+    col_name = "Allocated",
+    placement = "top"
+  )
+```
+
+## Soil type
+```{r}
+fit <- MASS::lda(group ~ bandA + bandB + bandC + bandD, data = satellite)
+fit
 ```
 
 ```{r}
-# Confusion matrix
-banknotes_ld |> 
-  
+centroids_soil <- satellite_ld |> 
+  group_by(group) |>
+  summarise(LD1 = mean(LD1), .groups = "drop") |> 
+  arrange(LD1)
+centroids_soil
+```
+
+**Cut points from centroids**
+```{r}
+cuts <- centroids_soil |>
+  reframe(cut = (LD1 + lead(LD1)) / 2) |>
+  filter(!is.na(cut))
+cuts
+```
+
+**Baysean posteriors**
+```{r}
+pred <- predict(fit)
+class <- pred$class # Based on posterior probability (Baysean)
+```
+
+### Predict
+```{r}
+
+# labels in the same LD1-sorted order as your centroids
+labs <- centroids_soil |> pull(group)
+
+satellite_pred <- satellite_ld |>
+  mutate(
+    allocated = cut(
+      LD1,
+      breaks = c(-Inf, cuts$cut, Inf),
+      labels = labs,
+      ordered_result = TRUE,
+      right = TRUE
+    ),
+    allocated = factor(allocated, levels = levels(group)),
+    class = pred$class
+  )
+```
+
+
+```{r}
+satellite_pred |>
+  count(allocated, name = "Frequency") |>
+  mutate(
+    Percent = 100 * Frequency / sum(Frequency),
+    ValidPercent = Percent,  # same because no missing values
+    CumulativePercent = cumsum(ValidPercent)
+  )
+```
+
+### Confusion matrices
+
+#### LD1 cut points
+```{r}
+tabyl(satellite_pred, group, allocated) |>
+  adorn_totals(c("row", "col")) |>
+  adorn_percentages("row") |>
+  adorn_pct_formatting(digits = 0, affix_sign = TRUE) |>
+  adorn_ns(position = "front") |> 
+  gt(rowname_col = "Truth")
 ```
 
 ```{r}
-# Confusion matrix (training set)
-table(Truth = banknotes$type, Pred = pred$class)
+satellite_pred |>
+  summarise(accuracy = mean(as.character(group) == as.character(allocated)))
+```
+
+#### Baysean posteriors
+```{r}
+tabyl(satellite_pred, group, class) |>
+  adorn_totals(c("row", "col")) |>
+  adorn_percentages("row") |>
+  adorn_pct_formatting(digits = 0, affix_sign = TRUE) |>
+  adorn_ns(position = "front") |> 
+  gt(rowname_col = "Truth")
 ```
 
 ```{r}
-# Accuracy
-mean(pred$class == as.numeric(banknotes$type))
-```
-
-```{r}
-# LD scores
-head(pred$x)   # columns LD1, LD2 (since 3 classes -> at most 2 LDs)
+satellite_pred |>
+  summarise(accuracy = mean(as.character(group) == as.character(class)))
 ```
 
 
+### Soil type test data
 ```{r}
-testsat <- read_sav("data/Book 3/testsat.sav")
+testsat <- read_sav("data/Book 3/testsat.sav") |> 
+    mutate(
+    group = factor(
+      group,
+      levels = 1:6,
+      labels = c(
+        "red soil",
+        "cotton crop",
+        "grey soil",
+        "damp grey soil",
+        "stubble",
+        "very damp grey soil"
+      )
+    )
+  )
+```
+
+#### Predict
+```{r}
+pred <- predict(fit, newdata = testsat)
+
+testsat_pred <- testsat |>
+  mutate(
+    LD1 = -pred$x[, 1],
+    allocated = cut(
+      LD1,
+      breaks = c(-Inf, cuts$cut, Inf),
+      labels = labs,
+      ordered_result = TRUE,
+      right = TRUE
+    ),
+    allocated = factor(allocated, levels = levels(group)),
+    class = pred$class
+  )
+```
+
+```{r}
+testsat_pred |>
+  count(allocated, name = "Frequency") |>
+  mutate(
+    Percent = 100 * Frequency / sum(Frequency),
+    ValidPercent = Percent,  # same because no missing values
+    CumulativePercent = cumsum(ValidPercent)
+  )
+```
+
+### Confusion matrices
+
+#### LD1 cut points
+```{r}
+tabyl(testsat_pred, group, allocated) |>
+  adorn_totals(c("row", "col")) |>
+  adorn_percentages("row") |>
+  adorn_pct_formatting(digits = 0, affix_sign = TRUE) |>
+  adorn_ns(position = "front") |> 
+  gt(rowname_col = "Truth")
+```
+
+```{r}
+testsat_pred |>
+  summarise(accuracy = mean(as.character(group) == as.character(allocated)))
+```
+
+#### Baysean posteriors
+```{r}
+tabyl(testsat_pred, group, class) |>
+  adorn_totals(c("row", "col")) |>
+  adorn_percentages("row") |>
+  adorn_pct_formatting(digits = 0, affix_sign = TRUE) |>
+  adorn_ns(position = "front") |> 
+  gt(rowname_col = "Truth")
+```
+
+```{r}
+testsat_pred |>
+  summarise(accuracy = mean(as.character(group) == as.character(class)))
+```
+
+```{r}
+testsat2 <- read_sav("data/Book 3/testsat2.sav") |> 
+    mutate(
+    group = factor(
+      group,
+      levels = 1:6,
+      labels = c(
+        "red soil",
+        "cotton crop",
+        "grey soil",
+        "damp grey soil",
+        "stubble",
+        "very damp grey soil"
+      )
+    ),
+    allocated = factor(
+      allocated,
+      levels = 1:6,
+      labels = c(
+        "red soil",
+        "cotton crop",
+        "grey soil",
+        "damp grey soil",
+        "stubble",
+        "very damp grey soil"
+      )
+    )
+  )
 ```
