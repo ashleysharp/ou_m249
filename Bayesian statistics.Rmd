@@ -5,7 +5,78 @@ date: "2025-07-05"
 ---
 
 ```{r}
+library(tidyverse)
 library(runjags)
 library(coda)
+```
+
+# Baysean analysis for a proportion
+## Likelihood for a proportion
+```{r}
+n <- 50
+x <- 11
+
+tibble(p = seq(0, 1, length.out = 1000)) |>
+  mutate(likelihood = dbinom(x, n, p)) |> #p^x * (1 - p)^(n - x)
+  ggplot(aes(p, likelihood)) +
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = x / n, linetype = "dashed") +
+  labs(
+    title = "Binomial likelihood",
+    subtitle = paste0("n = ", n, ", x = ", x),
+    x = "p",
+    y = "Likelihood"
+  ) +
+  theme_minimal()
+```
+## Posterior for a proportion
+
+```{r}
+# data
+n <- 9
+x <- 6
+
+# beta prior
+a <- 2
+b <- 6
+
+df <- tibble(p = seq(0, 1, length.out = 2000)) |>
+  mutate(
+    dp = p[2] - p[1],                       # grid spacing
+    prior = dbeta(p, a, b),
+    likelihood_raw = dbinom(x, size = n, prob = p),
+    # normalise likelihood so it integrates to 1
+    likelihood = likelihood_raw / sum(likelihood_raw * dp),
+    posterior = dbeta(p, a + x, b + (n - x))
+  ) |>
+  select(p, prior, likelihood, posterior) |>
+  pivot_longer(-p, names_to = "curve", values_to = "density")
+
+ggplot(df, aes(p, density, colour = curve)) +
+  geom_line(linewidth = 0.6) +
+  geom_vline(xintercept = x / n, linetype = "dashed") +
+  scale_colour_manual(
+  values = c(
+    prior = "#1f77b4",
+    likelihood = "#ff7f0e",
+    posterior = "#2ca02c"
+  ),
+  breaks = c("prior", "likelihood", "posterior"),
+  labels = c(
+    "Prior: Beta(a,b)",
+    "Likelihood (normalised)",
+    "Posterior: Beta(a+x, b+n-x)"
+  )
+) +
+  labs(
+    title = "Prior, likelihood, and posterior for a binomial model",
+    subtitle = str_glue(
+      "n = {n}, x = {x}; likelihood normalised via ∑ L(p)·Δp"
+    ),
+    x = "p",
+    y = "Density",
+    colour = NULL
+  ) +
+  theme_minimal()
 ```
 
