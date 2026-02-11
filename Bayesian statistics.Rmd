@@ -17,19 +17,21 @@ library(coda)
 n <- 50
 x <- 11
 
-tibble(p = seq(0, 1, length.out = 1000)) |>
-  mutate(likelihood = dbinom(x, n, p)) |> #p^x * (1 - p)^(n - x)
-  ggplot(aes(p, likelihood)) +
+tibble(theta = seq(0, 1, length.out = 1000)) |>
+  mutate(likelihood = dbinom(x, n, theta)) |> 
+  # = theta^x * (1 - theta)^(n - x)
+  ggplot(aes(theta, likelihood)) +
   geom_line(linewidth = 0.5) +
   geom_vline(xintercept = x / n, linetype = "dashed") +
   labs(
     title = "Binomial likelihood",
     subtitle = paste0("n = ", n, ", x = ", x),
-    x = "p",
-    y = "Likelihood"
+    x = "theta",
+    y = "likelihood"
   ) +
   theme_minimal()
 ```
+
 ## Posterior for a proportion
 
 ```{r}
@@ -41,26 +43,26 @@ x <- 6
 a <- 2
 b <- 6
 
-df <- tibble(p = seq(0, 1, length.out = 2000)) |>
+df <- tibble(theta = seq(0, 1, length.out = 2000)) |>
   mutate(
-    dp = p[2] - p[1], # grid spacing
-    prior = dbeta(p, a, b),
-    likelihood_raw = dbinom(x, size = n, prob = p),
+    dtheta = theta[2] - theta[1], # grid spacing
+    prior = dbeta(theta, a, b),
+    likelihood_raw = dbinom(x, size = n, prob = theta),
     # normalise likelihood so it integrates to 1
-    likelihood = likelihood_raw / sum(likelihood_raw * dp),
+    likelihood = likelihood_raw / sum(likelihood_raw * dtheta),
     # unnormalised posterior
     posterior_unnorm = prior * likelihood,
     # normalise so it integrates to 1
-    posterior = posterior_unnorm / sum(posterior_unnorm * dp),
+    posterior = posterior_unnorm / sum(posterior_unnorm * dtheta),
     # closed-form posterior for comparison
-    posterior_beta = dbeta(p, a + x, b + (n - x))
+    posterior_beta = dbeta(theta, a + x, b + (n - x))
   ) 
 
 df_long <- df |> 
-  select(p, prior, likelihood, posterior) |>
-  pivot_longer(-p, names_to = "curve", values_to = "density")
+  select(theta, prior, likelihood, posterior) |>
+  pivot_longer(-theta, names_to = "curve", values_to = "density")
 
-ggplot(df_long, aes(p, density, colour = curve)) +
+ggplot(df_long, aes(theta, density, colour = curve)) +
   geom_line(linewidth = 0.6) +
   scale_colour_manual(
   values = c(
@@ -80,8 +82,8 @@ ggplot(df_long, aes(p, density, colour = curve)) +
     subtitle = str_glue(
       "n = {n}, x = {x}; likelihood normalised via ∑ L(p)·Δp"
     ),
-    x = "p",
-    y = "Density",
+    x = "theta",
+    y = "density",
     colour = NULL
   ) +
   theme_minimal()
@@ -99,6 +101,7 @@ pnorm(105, mu, sd) # lower.tail = TRUE
 pnorm(92, mu, sd, lower.tail = FALSE) # upper tail
 pnorm(105, mu, sd) - pnorm(92, mu, sd)
 ```
+
 ### CDF and Quantile functions
 
 ```{r}
@@ -146,9 +149,9 @@ b  <- sd^2
 q25 <- qnorm(0.25, a, sd)
 q75 <- qnorm(0.75, a, sd)
 
-tibble(x = seq(a - 3*IQR, a + 3*IQR, length.out = 1000)) |>
-  mutate(d = dnorm(x, mean = a, sd = sd)) |>
-  ggplot(aes(x, d)) +
+tibble(theta = seq(a - 3*IQR, a + 3*IQR, length.out = 1000)) |>
+  mutate(d = dnorm(theta, mean = a, sd = sd)) |>
+  ggplot(aes(theta, d)) +
   geom_line(linewidth = 0.5) +
   geom_vline(xintercept = c(q25, q75), linetype = "dashed") +
   annotate(
@@ -169,4 +172,28 @@ tibble(x = seq(a - 3*IQR, a + 3*IQR, length.out = 1000)) |>
 ```
 
 ## Beta prior
+
+```{r}
+a <- 25
+b <- 5
+
+mode <- (a - 1) / (a + b - 2)
+s2 <- (a * b) / ((a + b)^2 * (a + b + 1))
+sd <- sqrt(s2)
+
+tibble(theta = seq(0.001, 0.999, length.out = 1000)) |>
+  mutate(d = dbeta(theta, a, b)) |> 
+  ggplot(aes(theta, d)) + 
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = mode, linetype = "dashed") +
+  labs(
+    x = expression(theta),
+    y = "Density",
+    subtitle = paste0(
+      "Mode = ", round(mode, 3),
+      ", SD = ", round(sd, 3)
+    )
+  ) +
+  theme_minimal()
+```
 
