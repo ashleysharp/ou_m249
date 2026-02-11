@@ -97,7 +97,76 @@ sd <- sqrt(50)
 
 pnorm(105, mu, sd) # lower.tail = TRUE
 pnorm(92, mu, sd, lower.tail = FALSE) # upper tail
-
 pnorm(105, mu, sd) - pnorm(92, mu, sd)
 ```
+### CDF and Quantile functions
+
+```{r}
+tibble(x = seq(-3, 3, length.out = 1000)) |>
+  mutate(p = pnorm(x)) %>% 
+  ggplot(aes(x, p)) +
+  geom_line(linewidth = 0.5) +
+  theme_minimal()
+
+tibble(p = seq(0.001, 0.999, length.out = 1000)) |>
+  mutate(x = qnorm(p)) %>% 
+  ggplot(aes(p, x)) +
+  geom_line(linewidth = 0.5) +
+  theme_minimal()
+```
+
+### Specifying using assessed values
+
+```{r}
+mode <- 20
+# Assumed mode of the distribution.
+# For a normal distribution, mode = mean = median,
+# so this value is used as the mean.
+
+L <- 0
+U <- 43
+# Supplied lower (Q1) and upper (Q3) quartiles.
+# These are not necessarily symmetric about the mean
+# if the asymmetry is not too severe a normal approximation should suffice
+
+IQR <- U - L
+# Interquartile range (Q3 − Q1)
+
+a <- mode
+# Mean of the normal distribution.
+
+sd <- IQR / (2 * qnorm(0.75)) # or IQR / (qnorm(0.75) - qnorm(0.25))
+# Convert IQR to standard deviation:
+# IQR = 2 * z_0.75 * sd.
+# Rearranging gives sd = IQR / (2 * z_0.75).
+
+b  <- sd^2
+# Variance corresponding to the derived standard deviation.
+
+q25 <- qnorm(0.25, a, sd)
+q75 <- qnorm(0.75, a, sd)
+
+tibble(x = seq(a - 3*IQR, a + 3*IQR, length.out = 1000)) |>
+  mutate(d = dnorm(x, mean = a, sd = sd)) |>
+  ggplot(aes(x, d)) +
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = c(q25, q75), linetype = "dashed") +
+  annotate(
+    "text",
+    x = q25, y = Inf,
+    label = paste0("Q0.25 = ", round(q25, 2)),
+    vjust = 1.2,
+    size = 3
+  ) +
+  annotate(
+    "text",
+    x = q75, y = Inf,
+    label = paste0("Q0.75 = ", round(q75, 2)),
+    vjust = 1.2,
+    size = 3
+  ) +
+  theme_minimal()
+```
+
+## Beta prior
 
