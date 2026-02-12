@@ -174,8 +174,8 @@ tibble(theta = seq(a - 3*IQR, a + 3*IQR, length.out = 1000)) |>
 ## Beta prior
 
 ```{r}
-a <- 25
-b <- 5
+a <- 4
+b <- 2
 
 mode <- (a - 1) / (a + b - 2)
 s2 <- (a * b) / ((a + b)^2 * (a + b + 1))
@@ -195,5 +195,77 @@ tibble(theta = seq(0.001, 0.999, length.out = 1000)) |>
     )
   ) +
   theme_minimal()
+```
+
+
+## Gamma prior
+```{r}
+a <- 6   # shape
+b <- 4   # rate
+
+mode <- (a - 1) / b
+mean <- a / b
+sd   <- sqrt(a) / b
+
+tibble(theta = seq(0, 5, length.out = 1000)) |>
+  mutate(d = dgamma(theta, shape = a, rate = b)) |> 
+  ggplot(aes(theta, d)) + 
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = mode, linetype = "dashed") +
+  geom_vline(xintercept = mean, linetype = "dotted") +
+  labs(
+    x = expression(theta),
+    y = "Density",
+    subtitle = paste0(
+      "Gamma(shape = ", a, ", rate = ", b, ")  |  ",
+      "Mode = ", round(mode, 3),
+      ", Mean = ", round(mean, 3),
+      ", SD = ", round(sd, 3)
+    )
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+pgamma(2, shape = 6, rate = 4)
+qgamma(0.95, shape = 6, rate = 4)
+```
+
+# Likelihoods
+
+## Normal likelihood
+```{r}
+n <- 10 # Number of observations
+x_bar <- 30 # Sample mean
+sigma2 <- 1 # Assumed known population variance
+sigma <- sqrt(sigma2) # Assumed known population sd
+
+tibble(
+  theta = seq(
+    x_bar - 2,
+    x_bar + 2,
+    length.out = 1000
+  )
+) |>
+  mutate(
+    likelihood = dnorm(x_bar, mean = theta, sd = sigma / sqrt(n))
+  ) |>
+  ggplot(aes(theta, likelihood)) +
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = x_bar, linetype = "dashed") +
+  labs(
+    title = "Normal likelihood for the mean",
+    subtitle = paste0(
+      "n = ", n,
+      ", σ² = ", sigma2
+    ),
+    x = expression(theta),
+    y = "Likelihood"
+  ) +
+  theme_minimal()
+
+```
+
 ```
 
