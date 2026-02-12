@@ -6,7 +6,7 @@ date: "2025-07-05"
 
 ```{r}
 library(tidyverse)
-library(runjags)
+library(rjags)
 library(coda)
 library(glue)
 ```
