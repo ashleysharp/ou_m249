@@ -381,6 +381,21 @@ x <- 7
 a <- 8
 b <- 15
 
+# closed-form posterior parameters
+a_post <- a + x
+b_post <- b + (n - x)
+
+post_mean <- a_post / (a_post + b_post)
+post_var  <- (a_post * b_post) / ((a_post + b_post)^2 * (a_post + b_post + 1))
+post_sd   <- sqrt(post_var)
+
+post_mode <- if (a_post > 1 && b_post > 1) (a_post - 1) / (a_post + b_post - 2) else NA_real_
+
+# equal-tailed credible interval (e.g., 95%)
+ci_level <- 0.95
+alpha_ci <- (1 - ci_level) / 2
+post_ci  <- qbeta(c(alpha_ci, 1 - alpha_ci), a_post, b_post)
+
 df <- tibble(theta = seq(0, 1, length.out = 2000)) |>
   mutate(
     dtheta = theta[2] - theta[1], # grid spacing
@@ -393,51 +408,69 @@ df <- tibble(theta = seq(0, 1, length.out = 2000)) |>
     # normalise so it integrates to 1
     posterior = posterior_unnorm / sum(posterior_unnorm * dtheta),
     # closed-form posterior for comparison
-    posterior_beta = dbeta(theta, a + x, b + (n - x))
-  ) 
+    posterior_beta = dbeta(theta, a_post, b_post)
+  )
 
-df_long <- df |> 
+df_long <- df |>
   select(theta, prior, likelihood, posterior) |>
   pivot_longer(-theta, names_to = "curve", values_to = "density")
 
 ggplot(df_long, aes(theta, density, colour = curve)) +
   geom_line(linewidth = 0.6) +
   scale_colour_manual(
-  values = c(
-    prior = "#1f77b4",
-    likelihood = "#ff7f0e",
-    posterior = "#2ca02c"
-  ),
-  breaks = c("prior", "likelihood", "posterior"),
-  labels = c(
-    "Prior: Beta(a,b)",
-    "Likelihood (normalised)",
-    "Posterior: Beta(a+x, b+n-x)"
-  )
-) +
+    values = c(
+      prior = "#1f77b4",
+      likelihood = "#ff7f0e",
+      posterior = "#2ca02c"
+    ),
+    breaks = c("prior", "likelihood", "posterior"),
+    labels = c(
+      "Prior: Beta(a,b)",
+      "Likelihood (normalised)",
+      "Posterior: Beta(a+x, b+n-x)"
+    )
+  ) +
   labs(
     title = "Prior, likelihood, and posterior for a binomial model",
     subtitle = str_glue(
-      "n = {n}, x = {x}; likelihood normalised via ∑ L(p)·Δp"
+      "n = {n}, x = {x}; posterior Beta({a_post}, {b_post}); ",
+      "E[θ|x]={round(post_mean, 3)}, SD={round(post_sd, 3)}, ",
+      "{round(ci_level*100)}% CI=[{round(post_ci[1],3)}, {round(post_ci[2],3)}]"
     ),
     x = "theta",
     y = "density",
     colour = NULL
   ) +
   theme_minimal()
+
 ```
 
 ## Gamma / Poisson
 
 ```{r}
-# Data (summary)
+# data (summary)
 n <- 8
 x_bar <- 0.75        # sample mean
-s <- n * x_bar    # total count (sufficient statistic)
+s <- n * x_bar       # total count (sufficient statistic)
 
-# Gamma prior (shape, rate)
+# damma prior (shape, rate)
 alpha <- 1.5
 beta <- 0.5
+
+# closed-form posterior parameters (shape-rate)
+alpha_post <- alpha + s          # = alpha + n*x_bar
+beta_post  <- beta + n
+
+post_mean <- alpha_post / beta_post
+post_var  <- alpha_post / (beta_post^2)
+post_sd   <- sqrt(post_var)
+
+post_mode <- if (alpha_post > 1) (alpha_post - 1) / beta_post else NA_real_
+
+# equal-tailed credible interval (e.g., 95%)
+ci_level <- 0.95
+alpha_ci <- (1 - ci_level) / 2
+post_ci  <- qgamma(c(alpha_ci, 1 - alpha_ci), shape = alpha_post, rate = beta_post)
 
 df <- tibble(theta = seq(0.001, 6, length.out = 2000)) |>
   mutate(
@@ -454,11 +487,7 @@ df <- tibble(theta = seq(0.001, 6, length.out = 2000)) |>
     # normalise posterior
     posterior = posterior_unnorm / sum(posterior_unnorm * dtheta),
     # closed-form posterior for comparison
-    posterior_gamma = dgamma(
-      theta,
-      shape = alpha + n * x_bar,
-      rate  = beta + n
-    )
+    posterior_gamma = dgamma(theta, shape = alpha_post, rate = beta_post)
   )
 
 df_long <- df |>
@@ -483,13 +512,17 @@ ggplot(df_long, aes(theta, density, colour = curve)) +
   labs(
     title = "Prior, likelihood, and posterior for a Gamma–Poisson model",
     subtitle = str_glue(
-      "n = {n}, x̄ = {x_bar}, total = n x̄ = {s}"
+      "n = {n}, x̄ = {x_bar}, total s = n x̄ = {s}; ",
+      "posterior Gamma({round(alpha_post,3)}, {round(beta_post,3)}); ",
+      "E[θ|x]={round(post_mean,3)}, SD={round(post_sd,3)}, ",
+      "{round(ci_level*100)}% CI=[{round(post_ci[1],3)}, {round(post_ci[2],3)}]"
     ),
     x = "theta",
     y = "density",
     colour = NULL
   ) +
   theme_minimal()
+
 ```
 
 # Baysean inference
