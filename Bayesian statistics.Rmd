@@ -289,14 +289,14 @@ ggplot(df_long, aes(theta, density, colour = curve)) +
     ),
     breaks = c("prior", "likelihood", "posterior"),
     labels = c(
-      "Prior: Normal(5, 4)",
+      "Prior",
       "Likelihood for θ (normalised)",
       "Posterior: Normal (closed-form)"
     )
   ) +
   labs(
     title = "Prior, likelihood, and posterior for a Normal/Normal model",
-    subtitle = glue("n = {n}, x̄ = {x_bar}, known σ² = {sigma2}; posterior mean = {round(post_mean, 3)}, posterior var = {round(post_var, 3)}"),
+    subtitle = glue("n = {n}, x̄ = {x_bar}, known σ² = {sigma2}; posterior mean = {round(post_mean, 2)}, posterior var = {round(post_var, 2)}"),
     x = "theta",
     y = "density",
     colour = NULL
@@ -490,5 +490,97 @@ ggplot(df_long, aes(theta, density, colour = curve)) +
     colour = NULL
   ) +
   theme_minimal()
+```
+
+# Baysean inference
+
+## Alzheimer's progression
+```{r}
+# Data (summary)
+n <- 20
+x_bar <- -36
+sigma2 <- 100  # known population variance
+se <- sqrt(sigma2 / n)
+
+# Prior: Normal(mu0, tau2)
+mu0 <- -25
+tau2 <- 64
+tau <- sqrt(tau2)
+
+# Conjugate posterior params
+prec0 <- 1 / tau2
+preclik <- n / sigma2
+
+post_var <- 1 / (prec0 + preclik)
+post_sd  <- sqrt(post_var)
+post_mean <- post_var * (prec0 * mu0 + preclik * x_bar)
+
+# Grid
+theta_min <- min(mu0 - 5*tau, x_bar - 5*se)
+theta_max <- max(mu0 + 5*tau, x_bar + 5*se)
+
+df <- tibble(theta = seq(theta_min, theta_max, length.out = 2000)) |>
+  mutate(
+    dtheta = theta[2] - theta[1],  # grid spacing
+    # prior density (already integrates to 1)
+    prior = dnorm(theta, mean = mu0, sd = tau),
+    # likelihood as a function of theta: p(x_bar | theta)
+    likelihood_raw = dnorm(x_bar, mean = theta, sd = se),
+    # normalise likelihood over theta so it integrates to 1 (so it can be plotted on same "density" scale)
+    likelihood = likelihood_raw / sum(likelihood_raw * dtheta),
+    # unnormalised posterior on the grid
+    posterior_unnorm = prior * likelihood,
+    # normalise posterior
+    posterior = posterior_unnorm / sum(posterior_unnorm * dtheta),
+    # closed-form posterior for comparison
+    posterior_norm = dnorm(theta, mean = post_mean, sd = post_sd)
+  )
+
+df_long <- df |>
+  select(theta, prior, likelihood, posterior) |>
+  pivot_longer(-theta, names_to = "curve", values_to = "density")
+
+ggplot(df_long, aes(theta, density, colour = curve)) +
+  geom_line(linewidth = 0.6) +
+  scale_colour_manual(
+    values = c(
+      prior = "#1f77b4",
+      likelihood = "#ff7f0e",
+      posterior = "#2ca02c"
+    ),
+    breaks = c("prior", "likelihood", "posterior"),
+    labels = c(
+      "Prior",
+      "Likelihood for θ (normalised)",
+      "Posterior: Normal (closed-form)"
+    )
+  ) +
+  labs(
+    title = "Prior, likelihood, and posterior for a Normal/Normal model",
+    subtitle = glue("n = {n}, x̄ = {x_bar}, known σ² = {sigma2}; posterior mean = {round(post_mean, 2)}, posterior var = {round(post_var, 2)}"),
+    x = "theta",
+    y = "density",
+    colour = NULL
+  ) +
+  theme_minimal()
+```
+
+### Posterior probabilities
+```{r}
+pnorm(-35, mean = post_mean, sd = post_sd) - pnorm(-40, mean = post_mean, sd = post_sd)
+
+pnorm(-40, mean = post_mean, sd = post_sd, lower.tail = FALSE)
+
+pnorm(-35, mean = post_mean, sd = post_sd)
+```
+
+### Posterior quantiles
+```{r}
+qnorm(0.95, mean = post_mean, sd = post_sd)
+```
+
+### Posterior credible interval
+```{r}
+c(qnorm(0.05, mean = post_mean, sd = post_sd), qnorm(0.95, mean = post_mean, sd = post_sd))
 ```
 
