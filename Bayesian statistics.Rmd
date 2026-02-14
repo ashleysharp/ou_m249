@@ -6,7 +6,7 @@ date: "2025-07-05"
 
 ```{r}
 library(tidyverse)
-library(rjags)
+library(runjags)
 library(coda)
 library(glue)
 ```
@@ -706,3 +706,321 @@ HPDinterval(as.mcmc(samp), prob = 0.99)
 
 # Introduction to WinBUGS (rjags)
 
+## Beta(19,19)
+
+```{r warning=FALSE}
+# WinBUGS / JAGS model written directly as text
+model_string <- "
+model {
+  theta1 ~ dbeta(19,19)
+}
+"
+
+# Run the model
+fit <- run.jags(
+  model    = model_string,
+  monitor  = "theta1",
+  n.chains = 1,
+  burnin   = 1000,
+  sample   = 1000
+)
+```
+
+```{r}
+fit
+```
+
+### Kernel density plot
+```{r}
+# Extract posterior draws (coda mcmc object)
+mcmc_obj <- fit$mcmc
+
+# Plot with coda
+densplot(mcmc_obj[, "theta1"], main = "Posterior density: theta1")
+```
+
+```{r}
+# Convert to a simple numeric vector
+theta_samples <- as.numeric(mcmc_obj[[1]][, "theta1"])
+
+mean(theta_samples)
+var(theta_samples)
+
+# True values for Beta(a, b)
+a <- 19
+b <- 19
+
+mean_beta <- a / (a + b)
+var_beta  <- (a * b) / ((a + b)^2 * (a + b + 1))
+
+mean_beta
+var_beta
+
+# Other quantiles
+quantile(theta_samples, c(0.05, 0.95))
+```
+
+## Transformations of parameters
+
+### Sex ratio of births in Milton Keynes
+```{r warning=FALSE}
+model_string <- "
+model {
+  theta ~ dbeta(1447,1393)
+  phi <- theta/(1-theta)
+  logodds <- log(theta/(1-theta))
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  monitor  = c("theta", "phi", "logodds"),
+  n.chains = 1,
+  burnin   = 1000,
+  sample   = 10000
+)
+
+fit
+
+densplot(fit$mcmc[, "theta"], main = "Posterior density: theta")
+densplot(fit$mcmc[, "phi"], main = "Posterior density: phi")
+densplot(fit$mcmc[, "logodds"], main = "Posterior density: logodds")
+```
+
+# Multivariate problems
+
+## Density of the Earth, normal gamma
+
+```{r warning=FALSE}
+model_string <- "
+model {
+  mu ~ dnorm(5.44,prec)
+  prec <- tau/0.0343
+  tau ~ dgamma(16.7,0.982)
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  monitor  = c("mu", "tau", "prec"),
+  n.chains = 1,
+  burnin   = 1000,
+  sample   = 1000
+)
+
+fit
+
+densplot(fit$mcmc[, "mu"], main = "Posterior density: mu")
+densplot(fit$mcmc[, "tau"], main = "Posterior density: tau")
+```
+### Scatterplot
+```{r}
+draws <- as.matrix(fit$mcmc) |>
+  as_tibble()
+
+draws |>
+  ggplot(aes(x = tau, y = mu)) +
+  geom_point(alpha = 0.4, size = 0.9) +
+  labs(
+    title = "Joint posterior: mu vs tau",
+    x = "tau",
+    y = "mu"
+  ) +
+  theme_minimal()
+```
+
+## Difference between binomial proportions
+
+```{r warning=FALSE}
+model_string <- "
+model {
+  theta1 ~ dbeta(19,19)
+	theta2 ~ dbeta(5,15)
+	d <- theta1 - theta2
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  monitor  = c("d"),
+  n.chains = 1,
+  burnin   = 1000,
+  sample   = 10000
+)
+
+fit
+
+densplot(fit$mcmc[, "d"], main = "Posterior density: d")
+```
+
+# MCMC
+
+```{r warning=FALSE}
+data_list <- list(x=c(5.50,5.61,4.88,5.07,5.26,5.55,5.36,5.29,5.58,5.65,5.57,5.53,5.62,5.29,5.44,5.34,5.79,5.10,5.27,5.39,5.42,5.47,5.63,5.34,5.46,5.30,5.75,5.68,5.85),n=29)
+
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:n) {
+    x[i] ~ dnorm(mu, tau)
+  }
+
+  # Priors
+  mu  ~ dnorm(4, 1)
+  tau ~ dgamma(2.2, 0.15)
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  data     = data_list,
+  monitor  = c("mu", "tau"),
+  n.chains = 1,
+  burnin   = 1000,
+  sample   = 1000
+)
+
+fit
+
+densplot(fit$mcmc[, "mu"], main = "Posterior density: mu")
+densplot(fit$mcmc[, "tau"], main = "Posterior density: tau")
+```
+
+```{r}
+draws <- as.matrix(fit$mcmc) |>
+  as_tibble()
+
+draws |>
+  ggplot(aes(x = tau, y = mu)) +
+  geom_point(alpha = 0.4, size = 0.9) +
+  labs(
+    title = "Joint posterior: mu vs tau",
+    x = "tau",
+    y = "mu"
+  ) +
+  theme_minimal()
+```
+
+### Trace plot
+```{r}
+traceplot(fit$mcmc[, "mu"],  main = "Trace: mu")
+traceplot(fit$mcmc[, "tau"], main = "Trace: tau")
+```
+
+# MCMC samples from multiple chains
+
+##Traffic platoons
+```{r warning=FALSE}
+data_list <- list(
+  y = c(256,72,33,21,10,4,4,0,2),
+  m = 9,
+  zeros = rep(0, 9)
+)
+
+model_string <- "
+model {
+  for (i in 1:m){
+    phi[i] <- -y[i]*(-theta*i + (i-1)*log(theta*i) - logfact(i))
+    zeros[i] ~ dpois(phi[i])
+  }
+  ltheta ~ dnorm(0,1.0E-4)
+  theta <- ilogit(ltheta)
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  data     = data_list,
+  monitor  = c("ltheta", "theta"),
+  n.chains = 3,
+  burnin   = 4000,
+  sample   = 5000
+)
+
+fit
+
+densplot(fit$mcmc[, "ltheta"], main = "Posterior density: ltheta")
+densplot(fit$mcmc[, "theta"], main = "Posterior density: theta")
+
+traceplot(fit$mcmc[, "ltheta"], main = "Trace: ltheta")
+traceplot(fit$mcmc[[1]][, "ltheta"], main = "Trace: ltheta (chain 1)")
+traceplot(fit$mcmc[, "theta"], main = "Trace: theta")
+```
+
+## Lung cancer
+
+```{r warning=FALSE}
+data_list <- list(x=c(10,1,0,2,4,2,2,7,19,10,11,12,10,5,2,1,2,3,2,3,2,3,2,1,2,1,2,1,3,0,6,4,3,1,0,1,0,2,2,1,1,0,1,0,1,1,4),n=47)
+
+model_string <- "
+model
+{
+	for (i in 1:n){
+		x[i] ~ dpois(lambda)
+	}
+    llambda ~ dnorm(normmean,normprec)
+	normmean <- log(5)
+	normprec <- 1/(0.421*0.421)
+	lambda <- exp(llambda)
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  data     = data_list,
+  monitor  = c("lambda", "llambda"),
+  n.chains = 3,
+  burnin   = 4000,
+  sample   = 1000
+)
+
+fit
+
+densplot(fit$mcmc[, "lambda"], main = "Posterior density: lambda")
+densplot(fit$mcmc[, "llambda"], main = "Posterior density: llambda")
+
+traceplot(fit$mcmc[, "lambda"], main = "Trace: lambda")
+traceplot(fit$mcmc[, "llambda"], main = "Trace: llambda")
+```
+
+# Baysean random effects meta-analysis
+
+```{r warning=FALSE}
+data_list <- list(k=8,xc=c(2,23,7,1,8,9,3,118),xm=c(1,9,2,1,10,1,1,90),nc=c(36,135,200,46,148,56,23,1157),nm=c(40,135,200,48,150,59,25,1159))
+
+model_string <- "
+model 
+{
+	for(i in 1:k) {
+		xm[i] ~ dbin(thetam[i],nm[i])
+		xc[i] ~ dbin(thetac[i],nc[i])
+		thetac[i] ~ dunif(0,1)
+		del[i] ~ dnorm(delta,tau)
+		logit(thetam[i]) <- logit(thetac[i])+del[i]
+		OR[i] <- exp(del[i])
+	}
+	delta ~ dnorm(0,prec)
+	prec <- 1/0.0306
+	sigma ~ dunif(0,100)
+	tau <- 1/(sigma*sigma)
+	oddsratio <- exp(delta)
+}
+"
+
+fit <- run.jags(
+  model    = model_string,
+  data     = data_list,
+  monitor  = c("thetac", "delta", "oddsratio", "del", "OR", "sigma"),
+  n.chains = 3,
+  burnin   = 4000,
+  sample   = 1500
+)
+
+fit
+
+densplot(fit$mcmc[, "delta"], main = "Posterior density: delta")
+traceplot(fit$mcmc[, "delta"], main = "Trace: delta")
+
+densplot(fit$mcmc[, "oddsratio"], main = "Posterior density: oddsratio")
+traceplot(fit$mcmc[, "oddsratio"], main = "Trace: oddsratio")
+```
